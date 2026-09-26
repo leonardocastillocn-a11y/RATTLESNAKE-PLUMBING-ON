@@ -213,6 +213,10 @@ TEXTS = {
         "workers_pay_mode": "Modalidad de Pago",
         "workers_save_changes": "Guardar Cambios de Ficha",
         "workers_updated_msg": "Ficha del trabajador actualizada correctamente.",
+        "workers_del_title": "Eliminar Registro de Trabajador",
+        "workers_del_select": "Selecciona el ID del Trabajador a borrar",
+        "workers_del_btn": "Eliminar Trabajador",
+        "workers_del_success": "Registro de trabajador eliminado.",
         # Nómina
         "payroll_title": "💵 Nómina, Pago por Hora & Control de Horas Extras",
         "tab_active_payroll": "📌 Historial de Nóminas & Aplicar Pagos",
@@ -237,6 +241,10 @@ TEXTS = {
         "payroll_total_calc": "🧮 Total a Pagar:",
         "payroll_gen_submit": "💾 Generar Recibo de Nómina por Horas",
         "payroll_gen_success": "✅ Nómina por horas generada correctamente con estatus Pendiente.",
+        "payroll_del_title": "Eliminar Registro de Nómina",
+        "payroll_del_select": "Selecciona el ID de Nómina a borrar",
+        "payroll_del_btn": "Eliminar Registro de Nómina",
+        "payroll_del_success": "Registro de nómina eliminado.",
         # Estimaciones
         "estimates_title": "📐 Estimaciones de Obra & Control de Cobros a Clientes",
         "tab_active_estimates": "📌 Estimaciones Registradas & Cobros",
@@ -259,6 +267,10 @@ TEXTS = {
         "estimates_net_calc": "🧮 Neto Facturable a Cobrar:",
         "estimates_issue_submit": "📐 Emitir Estimación de Obra",
         "estimates_issue_success": "✅ Estimación emitida exitosamente.",
+        "estimates_del_title": "Eliminar Registro de Estimación",
+        "estimates_del_select": "Selecciona el ID de la Estimación a borrar",
+        "estimates_del_btn": "Eliminar Estimación",
+        "estimates_del_success": "Registro de estimación eliminado.",
         # Costos
         "costos_title": "💰 Captura & Control Metódico de Costos",
         "lbl_select_obra": "Seleccionar Obra",
@@ -272,7 +284,7 @@ TEXTS = {
         "costos_history": "Historial de Costos Registrados",
         "costos_categories_filter": "Categorías:",
         "costos_search": "🔎 Buscar Concepto / Usuario:",
-        "costos_delete_title": "🗑️ Eliminar Registro de Costo Erróneo",
+        "costos_delete_title": "Eliminar Registro de Costo Erróneo",
         "costos_delete_select": "Selecciona el ID del costo a eliminar",
         "costos_delete_btn": "Eliminar Costo",
         "costos_deleted_msg": "Costo eliminado.",
@@ -290,6 +302,10 @@ TEXTS = {
         "msg_pay_success": "Abono/Pago aplicado correctamente y reflejado en costos.",
         "cxp_filter_status": "Estatus:",
         "cxp_search": "🔎 Buscar Proveedor o Concepto:",
+        "cxp_del_title": "Eliminar Registro de Cuenta por Pagar",
+        "cxp_del_select": "Selecciona el ID de la CxP a borrar",
+        "cxp_del_btn": "Eliminar Cuenta por Pagar",
+        "cxp_del_success": "Registro de cuenta por pagar eliminado.",
         # Requisiciones
         "req_title": "📋 Requisiciones de Insumos & Materiales de Campo",
         "tab_active_req": "📌 Requisiciones Solicitadas",
@@ -308,6 +324,10 @@ TEXTS = {
         "req_status_new": "Nuevo Estatus",
         "req_status_submit": "Actualizar Estatus",
         "req_status_success": "Estatus de la requisición actualizado.",
+        "req_del_title": "Eliminar Requisición",
+        "req_del_select": "Selecciona el ID de la Requisición a borrar",
+        "req_del_btn": "Eliminar Requisición",
+        "req_del_success": "Requisición eliminada.",
         # Usuarios
         "users_title": "👑 Control & Alta de Usuarios Maestros",
         "lbl_new_username": "Nombre de Usuario (Login)",
@@ -316,6 +336,12 @@ TEXTS = {
         "btn_create_user": "Dar de Alta Usuario Maestro",
         "msg_user_success": "Usuario Maestro creado con éxito.",
         "users_list": "Usuarios Registrados en el Sistema",
+        "users_del_title": "Eliminar Usuario Maestro",
+        "users_del_select": "Selecciona el Usuario a eliminar",
+        "users_del_btn": "Eliminar Usuario",
+        "users_del_success": "Usuario eliminado con éxito.",
+        "users_del_self_err": "No puedes eliminar tu propio usuario en sesión activa.",
+        "users_del_no_users": "No hay usuarios secundarios para eliminar.",
     },
     "EN": {
         "app_title": "Rattlesnake System",
@@ -413,6 +439,10 @@ TEXTS = {
         "workers_pay_mode": "Payment Mode",
         "workers_save_changes": "Save Record Changes",
         "workers_updated_msg": "Worker record updated successfully.",
+        "workers_del_title": "Delete Worker Record",
+        "workers_del_select": "Select Worker ID to delete",
+        "workers_del_btn": "Delete Worker",
+        "workers_del_success": "Worker record deleted.",
         # Nómina
         "payroll_title": "💵 Payroll, Hourly Wages & Overtime Control",
         "tab_active_payroll": "📌 Payroll History & Apply Payments",
@@ -437,6 +467,10 @@ TEXTS = {
         "payroll_total_calc": "🧮 Total Net Payable:",
         "payroll_gen_submit": "💾 Generate Hourly Payroll Stub",
         "payroll_gen_success": "✅ Hourly payroll stub generated with Pending status.",
+        "payroll_del_title": "Delete Payroll Record",
+        "payroll_del_select": "Select Payroll ID to delete",
+        "payroll_del_btn": "Delete Payroll Record",
+        "payroll_del_success": "Payroll record deleted.",
         # Estimaciones
         "estimates_title": "📐 Project Progress Estimates & Client Invoicing",
         "tab_active_estimates": "📌 Registered Estimates & Collections",
@@ -459,6 +493,10 @@ TEXTS = {
         "estimates_net_calc": "🧮 Net Collectible Invoice Amount:",
         "estimates_issue_submit": "📐 Issue Site Estimate",
         "estimates_issue_success": "✅ Estimate issued successfully.",
+        "estimates_del_title": "Delete Estimate Record",
+        "estimates_del_select": "Select Estimate ID to delete",
+        "estimates_del_btn": "Delete Estimate",
+        "estimates_del_success": "Estimate record deleted.",
         # Costos
         "costos_title": "💰 Systematic Cost Tracking",
         "lbl_select_obra": "Select Project",
@@ -472,7 +510,7 @@ TEXTS = {
         "costos_history": "Expense Log History",
         "costos_categories_filter": "Categories:",
         "costos_search": "🔎 Search Concept / User:",
-        "costos_delete_title": "🗑️ Delete Erroneous Expense Entry",
+        "costos_delete_title": "Delete Erroneous Expense Entry",
         "costos_delete_select": "Select Cost ID to Delete",
         "costos_delete_btn": "Delete Expense",
         "costos_deleted_msg": "Cost entry deleted.",
@@ -490,6 +528,10 @@ TEXTS = {
         "msg_pay_success": "Payment applied successfully and recorded under expenses.",
         "cxp_filter_status": "Status:",
         "cxp_search": "🔎 Search Vendor or Concept:",
+        "cxp_del_title": "Delete Accounts Payable Entry",
+        "cxp_del_select": "Select AP ID to delete",
+        "cxp_del_btn": "Delete Accounts Payable",
+        "cxp_del_success": "Accounts payable record deleted.",
         # Requisiciones
         "req_title": "📋 Field Materials & Supply Requisitions",
         "tab_active_req": "📌 Active Requisitions",
@@ -508,6 +550,10 @@ TEXTS = {
         "req_status_new": "New Status",
         "req_status_submit": "Update Status",
         "req_status_success": "Requisition status updated.",
+        "req_del_title": "Delete Requisition",
+        "req_del_select": "Select Requisition ID to delete",
+        "req_del_btn": "Delete Requisition",
+        "req_del_success": "Requisition deleted.",
         # Usuarios
         "users_title": "👑 Master User Access Control",
         "lbl_new_username": "Username",
@@ -516,6 +562,12 @@ TEXTS = {
         "btn_create_user": "Register Master User",
         "msg_user_success": "Master User registered successfully.",
         "users_list": "Registered System Users",
+        "users_del_title": "Delete Master User",
+        "users_del_select": "Select User to delete",
+        "users_del_btn": "Delete User",
+        "users_del_success": "User deleted successfully.",
+        "users_del_self_err": "You cannot delete your own active logged-in user.",
+        "users_del_no_users": "No secondary users available to delete.",
     },
 }
 
@@ -648,7 +700,7 @@ def init_db():
             },
         )
 
-        # 3. Trabajadores (con Tarifa por Hora)
+        # 3. Trabajadores
         c.execute("""
             CREATE TABLE IF NOT EXISTS trabajadores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -680,7 +732,7 @@ def init_db():
             },
         )
 
-        # 4. Nóminas (con Horas Normales y Extras)
+        # 4. Nóminas
         c.execute("""
             CREATE TABLE IF NOT EXISTS nominas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -723,7 +775,7 @@ def init_db():
             },
         )
 
-        # 5. Estimaciones (Cobro a Clientes)
+        # 5. Estimaciones
         c.execute("""
             CREATE TABLE IF NOT EXISTS estimaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1571,6 +1623,19 @@ elif menu_sel == t["nav_workers"]:
                     clear_data_cache()
                     st.success(t["workers_updated_msg"])
                     st.rerun()
+
+            st.markdown("---")
+            with st.expander("🗑️ " + t["workers_del_title"]):
+                w_del_id = st.selectbox(t["workers_del_select"], trabajadores_df["id"].tolist(), key="del_w_sb")
+                if st.button(t["workers_del_btn"], key="del_w_btn"):
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("DELETE FROM nominas WHERE trabajador_id = ?", (w_del_id,))
+                        c.execute("DELETE FROM trabajadores WHERE id = ?", (w_del_id,))
+                        conn.commit()
+                    clear_data_cache()
+                    st.success(t["workers_del_success"])
+                    st.rerun()
         else:
             st.info("No hay trabajadores registrados en la base de datos.")
 
@@ -1692,6 +1757,18 @@ elif menu_sel == t["nav_payroll"]:
                         st.rerun()
             else:
                 st.success(t["payroll_no_pending"])
+
+            st.markdown("---")
+            with st.expander("🗑️ " + t["payroll_del_title"]):
+                nom_del_id = st.selectbox(t["payroll_del_select"], nominas_df["id"].tolist(), key="del_nom_sb")
+                if st.button(t["payroll_del_btn"], key="del_nom_btn"):
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("DELETE FROM nominas WHERE id = ?", (nom_del_id,))
+                        conn.commit()
+                    clear_data_cache()
+                    st.success(t["payroll_del_success"])
+                    st.rerun()
         else:
             st.info("Sin registros de nómina generados.")
 
@@ -1839,6 +1916,18 @@ elif menu_sel == t["nav_estimates"]:
                             st.rerun()
                 else:
                     st.success("🎉 ¡Todas las estimaciones de los filtros seleccionados han sido cobradas al 100%!")
+
+                st.markdown("---")
+                with st.expander("🗑️ " + t["estimates_del_title"]):
+                    est_del_id = st.selectbox(t["estimates_del_select"], estimaciones_df["id"].tolist(), key="del_est_sb")
+                    if st.button(t["estimates_del_btn"], key="del_est_btn"):
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute("DELETE FROM estimaciones WHERE id = ?", (est_del_id,))
+                            conn.commit()
+                        clear_data_cache()
+                        st.success(t["estimates_del_success"])
+                        st.rerun()
             else:
                 st.info("No hay estimaciones registradas actualmente.")
 
@@ -1954,7 +2043,7 @@ elif menu_sel == t["nav_costos"]:
                 )
 
                 st.markdown("---")
-                with st.expander(t["costos_delete_title"]):
+                with st.expander("🗑️ " + t["costos_delete_title"]):
                     costo_del_id = st.selectbox(t["costos_delete_select"], costos_df["id"].tolist())
                     if st.button(t["costos_delete_btn"]):
                         with sqlite3.connect(DB_PATH) as conn:
@@ -2050,6 +2139,18 @@ elif menu_sel == t["nav_cxp"]:
                             st.rerun()
                 else:
                     st.success("🎉 ¡No hay cuentas pendientes por pagar para el filtro actual!")
+
+                st.markdown("---")
+                with st.expander("🗑️ " + t["cxp_del_title"]):
+                    cxp_del_id = st.selectbox(t["cxp_del_select"], cxp_df["id"].tolist(), key="del_cxp_sb")
+                    if st.button(t["cxp_del_btn"], key="del_cxp_btn"):
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute("DELETE FROM cuentas_por_pagar WHERE id = ?", (cxp_del_id,))
+                            conn.commit()
+                        clear_data_cache()
+                        st.success(t["cxp_del_success"])
+                        st.rerun()
             else:
                 st.info("No hay cuentas por pagar registradas.")
 
@@ -2132,6 +2233,18 @@ elif menu_sel == t["nav_req"]:
                         clear_data_cache()
                         st.success(t["req_status_success"])
                         st.rerun()
+
+                st.markdown("---")
+                with st.expander("🗑️ " + t["req_del_title"]):
+                    req_del_id = st.selectbox(t["req_del_select"], req_df["id"].tolist(), key="del_req_sb")
+                    if st.button(t["req_del_btn"], key="del_req_btn"):
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute("DELETE FROM requisiciones WHERE id = ?", (req_del_id,))
+                            conn.commit()
+                        clear_data_cache()
+                        st.success(t["req_del_success"])
+                        st.rerun()
             else:
                 st.info("No hay requisiciones generadas.")
 
@@ -2196,3 +2309,22 @@ elif menu_sel == t["nav_users"]:
         st.subheader(t["users_list"])
         users_df = get_usuarios_df()
         st.dataframe(users_df, use_container_width=True)
+
+        st.markdown("---")
+        with st.expander("🗑️ " + t["users_del_title"]):
+            user_del_list = users_df[users_df['username'] != 'admin']['username'].tolist()
+            if user_del_list:
+                user_del_sel = st.selectbox(t["users_del_select"], user_del_list, key="del_user_sb")
+                if st.button(t["users_del_btn"], key="del_user_btn"):
+                    if user_del_sel == user['username']:
+                        st.error(t["users_del_self_err"])
+                    else:
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute("DELETE FROM usuarios WHERE username = ?", (user_del_sel,))
+                            conn.commit()
+                        clear_data_cache()
+                        st.success(t["users_del_success"])
+                        st.rerun()
+            else:
+                st.info(t["users_del_no_users"])
