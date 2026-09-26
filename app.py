@@ -184,6 +184,7 @@ TEXTS = {
         "lbl_date": "Fecha del Gasto",
         "lbl_obs": "Notas / Referencia de Factura",
         "btn_save_costo": "Registrar Costo",
+        "msg_costo_success": "Costo registrado exitosamente.",
         "costos_history": "Historial de Costos Registrados",
         # CxP
         "cxp_title": "💳 Cuentas por Pagar & Compromisos Financieros",
@@ -192,21 +193,29 @@ TEXTS = {
         "lbl_provider": "Proveedor / Subcontratista",
         "lbl_due": "Fecha Límite de Pago",
         "btn_save_cxp": "Crear Cuenta por Pagar",
+        "msg_cxp_success": "Cuenta por pagar registrada exitosamente.",
         "btn_pay": "Aplicar Pago / Abono",
         "lbl_cxp_id": "ID Cuenta por Pagar",
         "lbl_pay_amount": "Monto a Abonar ($)",
+        "msg_pay_success": "Abono/Pago aplicado correctamente.",
         # Requisiciones
         "req_title": "📋 Requisiciones de Insumos & Materiales de Campo",
+        "tab_active_req": "📌 Requisiciones Solicitadas",
+        "tab_new_req": "➕ Nueva Requisición",
         "lbl_item": "Insumo / Material Requerido",
         "lbl_qty": "Cantidad",
         "lbl_unit": "Unidad",
         "lbl_priority": "Prioridad",
         "btn_send_req": "Enviar Requisición",
+        "msg_req_success": "Requisición enviada con éxito.",
         # Usuarios
         "users_title": "👑 Control & Alta de Usuarios Maestros",
+        "lbl_new_username": "Nombre de Usuario (Login)",
+        "lbl_new_password": "Contraseña",
         "lbl_fullname": "Nombre Completo",
         "btn_create_user": "Dar de Alta Usuario Maestro",
-        "msg_user_success": "Usuario Maestro creado con éxito."
+        "msg_user_success": "Usuario Maestro creado con éxito.",
+        "users_list": "Usuarios Registrados en el Sistema"
     },
     "EN": {
         "app_title": "Rattlesnake System",
@@ -267,6 +276,7 @@ TEXTS = {
         "lbl_date": "Expense Date",
         "lbl_obs": "Notes / Invoice Ref",
         "btn_save_costo": "Register Expense",
+        "msg_costo_success": "Expense registered successfully.",
         "costos_history": "Expense Log History",
         # CxP
         "cxp_title": "💳 Accounts Payable & Financial Commitments",
@@ -275,21 +285,29 @@ TEXTS = {
         "lbl_provider": "Vendor / Subcontractor",
         "lbl_due": "Due Date",
         "btn_save_cxp": "Create Payable Account",
+        "msg_cxp_success": "Payable account created successfully.",
         "btn_pay": "Apply Payment / Partial",
         "lbl_cxp_id": "AP Account ID",
         "lbl_pay_amount": "Amount to Pay ($)",
+        "msg_pay_success": "Payment applied successfully.",
         # Requisiciones
         "req_title": "📋 Field Materials & Supply Requisitions",
+        "tab_active_req": "📌 Active Requisitions",
+        "tab_new_req": "➕ New Requisition",
         "lbl_item": "Material / Supply Needed",
         "lbl_qty": "Quantity",
         "lbl_unit": "Unit",
         "lbl_priority": "Priority Level",
         "btn_send_req": "Submit Requisition",
+        "msg_req_success": "Requisition submitted successfully.",
         # Usuarios
         "users_title": "👑 Master User Access Control",
+        "lbl_new_username": "Username",
+        "lbl_new_password": "Password",
         "lbl_fullname": "Full Name",
         "btn_create_user": "Register Master User",
-        "msg_user_success": "Master User registered successfully."
+        "msg_user_success": "Master User registered successfully.",
+        "users_list": "Registered System Users"
     }
 }
 
@@ -487,19 +505,23 @@ def get_costos_df(proyecto_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         if proyecto_id:
             return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id WHERE c.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id", conn)
+        return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id ORDER BY c.id DESC", conn)
 
 def get_cxp_df(proyecto_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         if proyecto_id:
             return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id WHERE cxp.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id", conn)
+        return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id ORDER BY cxp.id DESC", conn)
 
 def get_requisiciones_df(proyecto_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         if proyecto_id:
             return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id WHERE r.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id", conn)
+        return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id ORDER BY r.id DESC", conn)
+
+def get_usuarios_df():
+    with sqlite3.connect(DB_PATH) as conn:
+        return pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios ORDER BY id DESC", conn)
 
 # ==========================================
 # 0. TABLERO OPERATIVO DIRECTOR
@@ -742,18 +764,23 @@ elif menu_sel == t["nav_costos"]:
                                 (obra_id, categoria, concepto, monto, fecha_costo, user['nombre'], observaciones)
                             )
                             conn.commit()
-                        st.success("Gasto registrado correctamente.")
+                        st.success(t["msg_costo_success"])
                         st.rerun()
 
         with col_form:
-            st.subheader(f"{t['costos_history']}: {obra_sel}")
-            costos_obra = get_costos_df(obra_id)
-            if not costos_obra.empty:
-                st.dataframe(costos_obra[['fecha', 'categoria', 'concepto', 'monto', 'registrado_por']], use_container_width=True)
-                st.metric("Total Ejecutado", f"${costos_obra['monto'].sum():,.2f}")
+            st.subheader(t["costos_history"])
+            costos_df = get_costos_df(obra_id)
+            if not costos_df.empty:
+                st.dataframe(
+                    costos_df[['categoria', 'concepto', 'monto', 'fecha', 'registrado_por']],
+                    column_config={"monto": st.column_config.NumberColumn("Monto", format="$%,.2f")},
+                    use_container_width=True
+                )
+            else:
+                st.info("Sin registros de costos para esta obra.")
 
 # ==========================================
-# 4. CUENTAS POR PAGAR (CXP)
+# 4. CUENTAS POR PAGAR (CxP)
 # ==========================================
 elif menu_sel == t["nav_cxp"]:
     st.markdown(f"<div class='main-header'>{t['cxp_title']}</div>", unsafe_allow_html=True)
@@ -763,55 +790,68 @@ elif menu_sel == t["nav_cxp"]:
         st.warning("Registra una obra o proyecto primero.")
     else:
         proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id']))
+        tab1, tab2 = st.tabs([t["tab_active_cxp"], t["tab_new_cxp"]])
 
-        tab_cxp1, tab_cxp2 = st.tabs([t["tab_active_cxp"], t["tab_new_cxp"]])
-
-        with tab_cxp1:
+        with tab1:
             cxp_df = get_cxp_df()
             if not cxp_df.empty:
-                cxp_df['Pendiente'] = cxp_df['monto_total'] - cxp_df['monto_pagado']
-                st.dataframe(cxp_df[['id', 'proyecto', 'proveedor', 'concepto', 'monto_total', 'monto_pagado', 'Pendiente', 'estatus', 'fecha_vencimiento']], use_container_width=True)
+                cxp_df['saldo_pendiente'] = cxp_df['monto_total'] - cxp_df['monto_pagado']
+                st.dataframe(
+                    cxp_df[['id', 'proyecto', 'proveedor', 'concepto', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus', 'fecha_vencimiento']],
+                    column_config={
+                        "monto_total": st.column_config.NumberColumn("Total", format="$%,.2f"),
+                        "monto_pagado": st.column_config.NumberColumn("Pagado", format="$%,.2f"),
+                        "saldo_pendiente": st.column_config.NumberColumn("Saldo", format="$%,.2f")
+                    },
+                    use_container_width=True
+                )
 
                 st.markdown("---")
-                c1, c2 = st.columns(2)
-                with c1:
-                    cxp_id = st.number_input(t["lbl_cxp_id"], min_value=1, step=1)
-                with c2:
-                    monto_abono = st.number_input(t["lbl_pay_amount"], min_value=0.01, step=500.0)
+                st.subheader(t["btn_pay"])
+                
+                pendientes = cxp_df[cxp_df['saldo_pendiente'] > 0]
+                if not pendientes.empty:
+                    with st.form("form_pago_cxp"):
+                        cxp_id_sel = st.selectbox(t["lbl_cxp_id"], pendientes['id'].tolist())
+                        monto_abono = st.number_input(t["lbl_pay_amount"], min_value=0.01, step=1000.0)
 
-                if st.button(t["btn_pay"]):
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("SELECT monto_total, monto_pagado FROM cuentas_por_pagar WHERE id = ?", (cxp_id,))
-                        row = c.fetchone()
-                        if row:
-                            total, pagado = row
-                            nuevo_pagado = pagado + monto_abono
-                            nuevo_estatus = "Pagado" if nuevo_pagado >= total else "Parcial"
-                            c.execute("UPDATE cuentas_por_pagar SET monto_pagado = ?, estatus = ? WHERE id = ?", (nuevo_pagado, nuevo_estatus, cxp_id))
-                            conn.commit()
-                            st.success("Abono/Pago registrado con éxito.")
+                        if st.form_submit_button(t["btn_pay"]):
+                            row = pendientes[pendientes['id'] == cxp_id_sel].iloc[0]
+                            nuevo_pagado = row['monto_pagado'] + monto_abono
+                            nuevo_estatus = "Pagado" if nuevo_pagado >= row['monto_total'] else "Parcial"
+
+                            with sqlite3.connect(DB_PATH) as conn:
+                                c = conn.cursor()
+                                c.execute(
+                                    "UPDATE cuentas_por_pagar SET monto_pagado = ?, estatus = ? WHERE id = ?",
+                                    (nuevo_pagado, nuevo_estatus, cxp_id_sel)
+                                )
+                                conn.commit()
+                            st.success(t["msg_pay_success"])
                             st.rerun()
+                else:
+                    st.success("🎉 ¡No hay cuentas pendientes por pagar!")
+            else:
+                st.info("No hay cuentas por pagar registradas.")
 
-        with tab_cxp2:
-            with st.form("form_cxp"):
-                obra_sel = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
-                obra_id = proyectos_dict[obra_sel]
+        with tab2:
+            with st.form("form_nueva_cxp"):
+                obra_cxp = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
                 proveedor = st.text_input(t["lbl_provider"])
-                concepto = st.text_input(t["lbl_concept"])
+                concepto_cxp = st.text_input(t["lbl_concept"])
                 monto_total = st.number_input(t["lbl_amount"], min_value=0.01, step=1000.0)
-                vencimiento = st.date_input(t["lbl_due"], datetime.now())
+                fecha_venc = st.date_input(t["lbl_due"], datetime.now())
 
                 if st.form_submit_button(t["btn_save_cxp"]):
-                    if proveedor and concepto and monto_total > 0:
+                    if proveedor and concepto_cxp and monto_total > 0:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
                                 "INSERT INTO cuentas_por_pagar (proyecto_id, proveedor, concepto, monto_total, fecha_vencimiento, registrado_por) VALUES (?, ?, ?, ?, ?, ?)",
-                                (obra_id, proveedor, concepto, monto_total, vencimiento, user['nombre'])
+                                (proyectos_dict[obra_cxp], proveedor, concepto_cxp, monto_total, fecha_venc, user['nombre'])
                             )
                             conn.commit()
-                        st.success("Cuenta por pagar creada.")
+                        st.success(t["msg_cxp_success"])
                         st.rerun()
 
 # ==========================================
@@ -825,66 +865,74 @@ elif menu_sel == t["nav_req"]:
         st.warning("Registra una obra o proyecto primero.")
     else:
         proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id']))
-        c_req1, c_req2 = st.columns([1, 1.2])
+        tab1, tab2 = st.tabs([t["tab_active_req"], t["tab_new_req"]])
 
-        with c_req1:
-            obra_sel = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
-            obra_id = proyectos_dict[obra_sel]
+        with tab1:
+            req_df = get_requisiciones_df()
+            if not req_df.empty:
+                st.dataframe(
+                    req_df[['id', 'proyecto', 'insumo', 'cantidad', 'unidad', 'prioridad', 'solicitado_por', 'estatus', 'fecha']],
+                    use_container_width=True
+                )
+            else:
+                st.info("No hay requisiciones generadas.")
 
-            with st.form("form_req"):
+        with tab2:
+            with st.form("form_nueva_req"):
+                obra_req = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
                 insumo = st.text_input(t["lbl_item"])
-                col_cant, col_uni = st.columns(2)
-                with col_cant:
-                    cantidad = st.number_input(t["lbl_qty"], min_value=0.1, step=1.0)
-                with col_uni:
-                    unidad = st.text_input(t["lbl_unit"], value="Pza")
-                prioridad = st.selectbox(t["lbl_priority"], ["Normal", "Urgente / Urgent", "Crítica / Critical"])
+                c_cant, c_uni, c_prio = st.columns(3)
+                with c_cant:
+                    cantidad = st.number_input(t["lbl_qty"], min_value=0.01, value=1.0)
+                with c_uni:
+                    unidad = st.text_input(t["lbl_unit"], value="Pza / M2 / Ton")
+                with c_prio:
+                    prioridad = st.selectbox(t["lbl_priority"], ["Baja", "Normal", "Alta", "Urgente"])
 
                 if st.form_submit_button(t["btn_send_req"]):
-                    if insumo:
+                    if insumo and cantidad > 0:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
                                 "INSERT INTO requisiciones (proyecto_id, insumo, cantidad, unidad, prioridad, solicitado_por) VALUES (?, ?, ?, ?, ?, ?)",
-                                (obra_id, insumo, cantidad, unidad, prioridad, user['nombre'])
+                                (proyectos_dict[obra_req], insumo, cantidad, unidad, prioridad, user['nombre'])
                             )
                             conn.commit()
-                        st.success("Requisición enviada correctamente.")
+                        st.success(t["msg_req_success"])
                         st.rerun()
 
-        with c_req2:
-            req_df = get_requisiciones_df(obra_id)
-            if not req_df.empty:
-                st.dataframe(req_df[['fecha', 'insumo', 'cantidad', 'unidad', 'prioridad', 'solicitado_por', 'estatus']], use_container_width=True)
-
 # ==========================================
-# 6. GESTIÓN DE USUARIOS MAESTROS
+# 6. USUARIOS MAESTROS
 # ==========================================
 elif menu_sel == t["nav_users"]:
     st.markdown(f"<div class='main-header'>{t['users_title']}</div>", unsafe_allow_html=True)
     
-    with sqlite3.connect(DB_PATH) as conn:
-        users_df = pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios", conn)
+    col_user1, col_user2 = st.columns([1, 1.2])
 
-    st.dataframe(users_df, use_container_width=True)
+    with col_user1:
+        with st.form("form_nuevo_usuario"):
+            new_username = st.text_input(t["lbl_new_username"])
+            new_password = st.text_input(t["lbl_new_password"], type="password")
+            fullname = st.text_input(t["lbl_fullname"])
 
-    st.markdown("---")
-    with st.form("form_user"):
-        new_username = st.text_input(t["user_label"])
-        new_password = st.text_input(t["pass_label"], type="password")
-        new_nombre = st.text_input(t["lbl_fullname"])
+            if st.form_submit_button(t["btn_create_user"]):
+                if new_username and new_password and fullname:
+                    try:
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute(
+                                "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
+                                (new_username, make_hashes(new_password), fullname, "Usuario Maestro")
+                            )
+                            conn.commit()
+                        st.success(t["msg_user_success"])
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("El nombre de usuario ya existe en el sistema.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
-        if st.form_submit_button(t["btn_create_user"]):
-            if new_username and new_password and new_nombre:
-                try:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute(
-                            "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-                            (new_username, make_hashes(new_password), new_nombre, "Usuario Maestro")
-                        )
-                        conn.commit()
-                    st.success(t["msg_user_success"])
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
+    with col_user2:
+        st.subheader(t["users_list"])
+        users_df = get_usuarios_df()
+        st.dataframe(users_df, use_container_width=True)
