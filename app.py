@@ -65,31 +65,23 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # 1. Tabla de Usuarios
+    # 1. Tabla de Usuarios (Único Rol: Usuario Maestro)
     c.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             nombre_completo TEXT NOT NULL,
-            rol TEXT NOT NULL
+            rol TEXT DEFAULT 'Usuario Maestro'
         )
     ''')
     
-    # Usuario Admin por defecto (admin / admin123)
+    # Usuario Maestro por defecto (admin / admin123)
     c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         c.execute(
             "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-            ("admin", make_hashes("admin123"), "Administrador General", "Administrador")
-        )
-        c.execute(
-            "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-            ("residente", make_hashes("obra123"), "Ing. Residente Campo", "Residente de Obra")
-        )
-        c.execute(
-            "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-            ("finanzas", make_hashes("finanzas123"), "Lic. Finanzas", "Finanzas")
+            ("admin", make_hashes("admin123"), "Usuario Maestro", "Usuario Maestro")
         )
 
     # 2. Tabla de Proyectos / Obras
@@ -220,7 +212,7 @@ if not st.session_state['logged_in']:
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         st.subheader("Acceso al Sistema")
-        username = st.text_input("Usuario")
+        username = st.text_input("Usuario Maestro")
         password = st.text_input("Contraseña", type="password")
         
         if st.button("Iniciar Sesión", use_container_width=True):
@@ -233,16 +225,16 @@ if not st.session_state['logged_in']:
             else:
                 st.error("Usuario o contraseña incorrectos.")
         
-        st.info("💡 **Usuarios Demo:**\n- Admin: `admin` / `admin123`\n- Residente: `residente` / `obra123`\n- Finanzas: `finanzas` / `finanzas123`")
+        st.info("🔑 **Acceso Inicial Maestro:**\n- Usuario: `admin`\n- Contraseña: `admin123`")
     st.stop()
 
 
 # ==========================================
-# BARRA LATERAL (MENÚ Y PERFIL)
+# BARRA LATERAL (MENÚ Y USUARIO)
 # ==========================================
 user = st.session_state['user_info']
 st.sidebar.title("⚡ Rattlesnake ERP")
-st.sidebar.caption(f"👤 **{user['nombre']}**\n📌 Rol: *{user['rol']}*")
+st.sidebar.caption(f"👤 **{user['nombre']}**\n👑 *Usuario Maestro*")
 
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state['logged_in'] = False
@@ -251,13 +243,15 @@ if st.sidebar.button("Cerrar Sesión"):
 
 st.sidebar.markdown("---")
 
-# Menú dinámico según roles
-opciones_menu = []
-if user['rol'] in ['Administrador', 'Finanzas']:
-    opciones_menu.append("📊 Balance Financiero")
-opciones_menu.extend(["🏗️ Obras y Ubicaciones", "💰 Registro de Costos", "💳 Pagos Pendientes (CxP)", "📋 Requisiciones de Campo"])
-if user['rol'] == 'Administrador':
-    opciones_menu.append("⚙️ Gestión de Usuarios")
+# Menú principal completo
+opciones_menu = [
+    "📊 Balance Financiero",
+    "🏗️ Obras y Ubicaciones",
+    "💰 Registro de Costos",
+    "💳 Pagos Pendientes (CxP)",
+    "📋 Requisiciones de Campo",
+    "👑 Gestión de Usuarios Maestros"
+]
 
 menu_sel = st.sidebar.radio("Navegación", opciones_menu)
 
@@ -273,7 +267,7 @@ if menu_sel == "📊 Balance Financiero":
     cxp_df = get_cxp_df()
 
     if proyectos_df.empty:
-        st.warning("No hay obras registradas. Primero da de alta una obra en el menú de 'Obras y Ubicaciones'.")
+        st.warning("No hay obras registradas. Registra tu primera obra en el menú de 'Obras y Ubicaciones'.")
     else:
         # Métricas Globales
         presupuesto_total = proyectos_df['presupuesto_total'].sum()
@@ -329,7 +323,6 @@ elif menu_sel == "🏗️ Obras y Ubicaciones":
         if not df_obras.empty:
             st.subheader("Ubicación Geográfica de Proyectos")
             
-            # Filtrar obras con coordenadas válidas para el mapa
             df_mapa = df_obras.dropna(subset=['latitud', 'longitud'])
             if not df_mapa.empty:
                 st.map(df_mapa, latitude='latitud', longitude='longitud', size=20)
@@ -343,40 +336,37 @@ elif menu_sel == "🏗️ Obras y Ubicaciones":
             st.info("No hay obras registradas.")
 
     with tab2:
-        if user['rol'] in ['Administrador', 'Finanzas']:
-            st.subheader("Alta de Nuevo Proyecto")
-            with st.form("form_nueva_obra"):
-                codigo = st.text_input("Código de Obra (ej. OBRA-2026-01)")
-                nombre = st.text_input("Nombre de la Obra")
-                cliente = st.text_input("Cliente / Empresa")
-                presupuesto = st.number_input("Presupuesto Total ($)", min_value=0.0, step=10000.0)
-                
-                c_lat, c_lon = st.columns(2)
-                with c_lat:
-                    latitud = st.number_input("Latitud GPS (ej. 24.8091)", format="%.6f", value=24.8091)
-                with c_lon:
-                    longitud = st.number_input("Longitud GPS (ej. -107.3940)", format="%.6f", value=-107.3940)
+        st.subheader("Alta de Nuevo Proyecto")
+        with st.form("form_nueva_obra"):
+            codigo = st.text_input("Código de Obra (ej. OBRA-2026-01)")
+            nombre = st.text_input("Nombre de la Obra")
+            cliente = st.text_input("Cliente / Empresa")
+            presupuesto = st.number_input("Presupuesto Total ($)", min_value=0.0, step=10000.0)
+            
+            c_lat, c_lon = st.columns(2)
+            with c_lat:
+                latitud = st.number_input("Latitud GPS (ej. 24.8091)", format="%.6f", value=24.8091)
+            with c_lon:
+                longitud = st.number_input("Longitud GPS (ej. -107.3940)", format="%.6f", value=-107.3940)
 
-                if st.form_submit_button("Guardar Obra"):
-                    if codigo and nombre and cliente:
-                        conn = sqlite3.connect(DB_PATH)
-                        c = conn.cursor()
-                        try:
-                            c.execute(
-                                "INSERT INTO proyectos (codigo, nombre, cliente, presupuesto_total, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?)",
-                                (codigo, nombre, cliente, presupuesto, latitud, longitud)
-                            )
-                            conn.commit()
-                            st.success(f"Obra '{nombre}' creada exitosamente.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al guardar: {e}")
-                        finally:
-                            conn.close()
-                    else:
-                        st.error("Completa los campos obligatorios.")
-        else:
-            st.warning("Solo Administradores o Personal de Finanzas pueden dar de alta proyectos.")
+            if st.form_submit_button("Guardar Obra"):
+                if codigo and nombre and cliente:
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    try:
+                        c.execute(
+                            "INSERT INTO proyectos (codigo, nombre, cliente, presupuesto_total, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?)",
+                            (codigo, nombre, cliente, presupuesto, latitud, longitud)
+                        )
+                        conn.commit()
+                        st.success(f"Obra '{nombre}' creada exitosamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar: {e}")
+                    finally:
+                        conn.close()
+                else:
+                    st.error("Completa los campos obligatorios.")
 
 
 # ==========================================
@@ -453,14 +443,12 @@ elif menu_sel == "💳 Pagos Pendientes (CxP)":
         with tab_cxp1:
             cxp_df = get_cxp_df()
             if not cxp_df.empty:
-                # Calcular pendiente
                 cxp_df['Pendiente'] = cxp_df['monto_total'] - cxp_df['monto_pagado']
                 st.dataframe(
                     cxp_df[['id', 'proyecto', 'proveedor', 'concepto', 'monto_total', 'monto_pagado', 'Pendiente', 'estatus', 'fecha_vencimiento', 'registrado_por']],
                     use_container_width=True
                 )
 
-                # Módulo de abonos
                 st.markdown("---")
                 st.subheader("Registrar Abono o Pago")
                 c1, c2 = st.columns(2)
@@ -562,39 +550,40 @@ elif menu_sel == "📋 Requisiciones de Campo":
 
 
 # ==========================================
-# VISTA 6: GESTIÓN DE USUARIOS (SOLO ADMIN)
+# VISTA 6: GESTIÓN DE USUARIOS MAESTROS
 # ==========================================
-elif menu_sel == "⚙️ Gestión de Usuarios":
-    st.markdown("<div class='main-header'>⚙️ Control de Acceso y Usuarios</div>", unsafe_allow_html=True)
+elif menu_sel == "👑 Gestión de Usuarios Maestros":
+    st.markdown("<div class='main-header'>👑 Alta y Control de Usuarios Maestros</div>", unsafe_allow_html=True)
     
     conn = sqlite3.connect(DB_PATH)
-    users_df = pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios", conn)
+    users_df = pd.read_sql_query("SELECT id, username, nombre_completo FROM usuarios", conn)
     conn.close()
 
-    st.subheader("Usuarios Registrados")
+    st.subheader("Usuarios Maestros Registrados")
     st.dataframe(users_df, use_container_width=True)
 
     st.markdown("---")
-    st.subheader("Agregar Nuevo Usuario")
+    st.subheader("Dar de Alta un Nuevo Usuario Maestro")
     with st.form("form_user"):
         new_username = st.text_input("Nombre de Usuario (Login)")
         new_password = st.text_input("Contraseña", type="password")
-        new_nombre = st.text_input("Nombre Completo")
-        new_rol = st.selectbox("Rol de Acceso", ["Administrador", "Residente de Obra", "Finanzas"])
+        new_nombre = st.text_input("Nombre Completo del Usuario Maestro")
 
-        if st.form_submit_button("Crear Usuario"):
+        if st.form_submit_button("Crear Usuario Maestro"):
             if new_username and new_password and new_nombre:
                 conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 try:
                     c.execute(
                         "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-                        (new_username, make_hashes(new_password), new_nombre, new_rol)
+                        (new_username, make_hashes(new_password), new_nombre, "Usuario Maestro")
                     )
                     conn.commit()
-                    st.success(f"Usuario '{new_username}' creado con exito.")
+                    st.success(f"Usuario Maestro '{new_username}' dado de alta exitosamente.")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error al crear usuario: {e}")
                 finally:
                     conn.close()
+            else:
+                st.error("Todos los campos son obligatorios.")
