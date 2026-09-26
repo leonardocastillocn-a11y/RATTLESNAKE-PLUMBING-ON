@@ -126,6 +126,7 @@ TEXTS = {
         "nav_director": "🎯 Tablero Operativo Director",
         "nav_balance": "📊 Balance Financiero",
         "nav_obras": "🏗️ Obras & Ubicaciones",
+        "nav_workers": "👷 Personal & Trabajadores",
         "nav_costos": "💰 Registro de Costos",
         "nav_cxp": "💳 Cuentas por Pagar (CxP)",
         "nav_req": "📋 Requisiciones de Campo",
@@ -154,14 +155,26 @@ TEXTS = {
         "lbl_code": "Código de Obra",
         "lbl_name": "Nombre de la Obra / Proyecto",
         "lbl_client": "Cliente / Empresa",
-        "lbl_address": "Dirección Completa (ej. Av. Vallarta 1234, Guadalajara, México)",
+        "lbl_calle": "Calle y Número",
+        "lbl_cp": "Código Postal (CP)",
+        "lbl_city": "Ciudad / Municipio",
+        "lbl_state": "Estado",
         "lbl_budget": "Presupuesto Contratado ($)",
         "lbl_target_prog": "Meta de Avance Esperado (%)",
         "lbl_real_prog": "Avance Real Actual (%)",
-        "lbl_lat": "Latitud GPS (Opcional / Auto)",
-        "lbl_lon": "Longitud GPS (Opcional / Auto)",
+        "lbl_lat": "Latitud GPS (Opcional)",
+        "lbl_lon": "Longitud GPS (Opcional)",
         "btn_save_obra": "Guardar Proyecto",
         "msg_obra_success": "Obra guardada exitosamente.",
+        "workers_title": "👷 Control de Personal & Asignación a Obras",
+        "tab_workers_list": "📌 Lista & Asignación de Personal",
+        "tab_new_worker": "➕ Registrar Nuevo Trabajador",
+        "lbl_worker_name": "Nombre Completo del Trabajador",
+        "lbl_position": "Puesto / Especialidad (ej. Albañil, Plomero, Residente)",
+        "lbl_phone": "Teléfono de Contacto",
+        "lbl_assign_obra": "Asignar a Obra",
+        "btn_save_worker": "Registrar Trabajador",
+        "msg_worker_success": "Trabajador registrado exitosamente.",
         "costos_title": "💰 Captura & Control Metódico de Costos",
         "lbl_select_obra": "Seleccionar Obra",
         "lbl_cat": "Categoría de Costo",
@@ -213,6 +226,7 @@ TEXTS = {
         "nav_director": "🎯 Director Operational Dashboard",
         "nav_balance": "📊 Financial Balance",
         "nav_obras": "🏗️ Projects & Locations",
+        "nav_workers": "👷 Personnel & Workers",
         "nav_costos": "💰 Cost Tracking",
         "nav_cxp": "💳 Accounts Payable",
         "nav_req": "📋 Field Requisitions",
@@ -234,21 +248,33 @@ TEXTS = {
         "metric_available": "Margin / Available",
         "chart_cat": "Cost Breakdown by Category",
         "chart_comp": "Budget vs Actual Cost per Project",
-        "obras_title": "🏗️ Project Management & Address Location",
+        "obras_title": "🏗️ Project Management & Detailed Address",
         "tab_map": "MAP & Project List",
         "tab_new_obra": "➕ Register New Project",
         "tab_del_obra": "🗑️ Delete Project",
         "lbl_code": "Project Code",
         "lbl_name": "Project Name",
         "lbl_client": "Client / Company",
-        "lbl_address": "Full Physical Address (e.g., 123 Main St, New York, NY)",
+        "lbl_calle": "Street & Number",
+        "lbl_cp": "Zip Code",
+        "lbl_city": "City",
+        "lbl_state": "State",
         "lbl_budget": "Contracted Budget ($)",
         "lbl_target_prog": "Target Expected Progress (%)",
         "lbl_real_prog": "Actual Current Progress (%)",
-        "lbl_lat": "GPS Latitude (Optional / Auto)",
-        "lbl_lon": "GPS Longitude (Optional / Auto)",
+        "lbl_lat": "GPS Latitude (Optional)",
+        "lbl_lon": "GPS Longitude (Optional)",
         "btn_save_obra": "Save Project",
         "msg_obra_success": "Project saved successfully.",
+        "workers_title": "👷 Personnel Control & Site Assignment",
+        "tab_workers_list": "📌 Staff List & Assignment",
+        "tab_new_worker": "➕ Register New Worker",
+        "lbl_worker_name": "Worker Full Name",
+        "lbl_position": "Role / Specialty (e.g. Mason, Plumber, Supervisor)",
+        "lbl_phone": "Phone Number",
+        "lbl_assign_obra": "Assign to Site",
+        "btn_save_worker": "Register Worker",
+        "msg_worker_success": "Worker registered successfully.",
         "costos_title": "💰 Systematic Cost Tracking",
         "lbl_select_obra": "Select Project",
         "lbl_cat": "Cost Category",
@@ -292,11 +318,14 @@ TEXTS = {
 # ==========================================
 # GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
 # ==========================================
-def geocode_address(address):
-    if not address or len(address.strip()) < 3:
+def geocode_address(calle, cp, ciudad, estado):
+    partes = [p.strip() for p in [calle, cp, ciudad, estado] if p and p.strip()]
+    direccion_completa = ", ".join(partes)
+    
+    if not direccion_completa:
         return None, None
     try:
-        encoded = urllib.parse.quote(address)
+        encoded = urllib.parse.quote(direccion_completa)
         url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
         req = urllib.request.Request(url, headers={'User-Agent': 'RattlesnakeERP/1.0'})
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -355,7 +384,10 @@ def init_db():
                 codigo TEXT UNIQUE NOT NULL,
                 nombre TEXT NOT NULL,
                 cliente TEXT DEFAULT '',
-                direccion TEXT DEFAULT '',
+                calle TEXT DEFAULT '',
+                codigo_postal TEXT DEFAULT '',
+                ciudad TEXT DEFAULT '',
+                estado_provincia TEXT DEFAULT '',
                 presupuesto_total REAL DEFAULT 0.0,
                 avance_meta REAL DEFAULT 0.0,
                 avance_real REAL DEFAULT 0.0,
@@ -374,7 +406,10 @@ def init_db():
             'codigo': "TEXT DEFAULT ''",
             'nombre': "TEXT DEFAULT ''",
             'cliente': "TEXT DEFAULT ''",
-            'direccion': "TEXT DEFAULT ''",
+            'calle': "TEXT DEFAULT ''",
+            'codigo_postal': "TEXT DEFAULT ''",
+            'ciudad': "TEXT DEFAULT ''",
+            'estado_provincia': "TEXT DEFAULT ''",
             'presupuesto_total': "REAL DEFAULT 0.0",
             'avance_meta': "REAL DEFAULT 0.0",
             'avance_real': "REAL DEFAULT 0.0",
@@ -387,6 +422,20 @@ def init_db():
         for col_name, col_def in cols_to_check.items():
             if col_name not in existing_cols:
                 c.execute(f"ALTER TABLE proyectos ADD COLUMN {col_name} {col_def}")
+
+        # Tabla de trabajadores
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS trabajadores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre_completo TEXT NOT NULL,
+                puesto TEXT NOT NULL,
+                telefono TEXT,
+                proyecto_id INTEGER,
+                estatus TEXT DEFAULT 'Activo',
+                fecha_registro DATE DEFAULT CURRENT_DATE,
+                FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
+            )
+        ''')
 
         # Tabla de costos
         c.execute('''
@@ -445,6 +494,13 @@ init_db()
 def get_proyectos_df():
     with sqlite3.connect(DB_PATH) as conn:
         return pd.read_sql_query("SELECT * FROM proyectos ORDER BY id DESC", conn)
+
+@st.cache_data(ttl=60)
+def get_trabajadores_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query("SELECT t.*, p.nombre as proyecto FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id WHERE t.proyecto_id = ? ORDER BY t.id DESC", conn, params=(proyecto_id,))
+        return pd.read_sql_query("SELECT t.*, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id ORDER BY t.id DESC", conn)
 
 @st.cache_data(ttl=60)
 def get_costos_df(proyecto_id=None):
@@ -529,6 +585,7 @@ opciones_menu = [
     t["nav_director"],
     t["nav_balance"],
     t["nav_obras"],
+    t["nav_workers"],
     t["nav_costos"],
     t["nav_cxp"],
     t["nav_req"],
@@ -716,7 +773,7 @@ elif menu_sel == t["nav_balance"]:
                 st.info("Sin datos comparativos de obra.")
 
 # ==========================================
-# 2. OBRAS Y MAPAS CON BÚSQUEDA POR DIRECCIÓN
+# 2. OBRAS Y MAPAS CON DIRECCIÓN DETALLADA
 # ==========================================
 elif menu_sel == t["nav_obras"]:
     st.markdown(f"<div class='main-header'>{t['obras_title']}</div>", unsafe_allow_html=True)
@@ -750,7 +807,7 @@ elif menu_sel == t["nav_obras"]:
                         ),
                     ],
                     tooltip={
-                        "html": "<b>🏗️ Obra:</b> {nombre}<br/><b>📍 Dirección:</b> {direccion}<br/><b>👤 Cliente:</b> {cliente}<br/><b>💰 Presupuesto:</b> ${presupuesto_total}",
+                        "html": "<b>🏗️ Obra:</b> {nombre}<br/><b>👤 Cliente:</b> {cliente}<br/><b>📍 Dirección:</b> {calle}, CP {codigo_postal}, {ciudad}, {estado_provincia}<br/><b>💰 Presupuesto:</b> ${presupuesto_total}",
                         "style": {"backgroundColor": "#0F172A", "color": "white", "fontSize": "13px", "borderRadius": "6px"}
                     }
                 ))
@@ -758,18 +815,33 @@ elif menu_sel == t["nav_obras"]:
                 st.info("Registra direcciones válidas para mostrar las obras en el mapa interactivo.")
                 
             st.markdown("---")
-            st.dataframe(df_obras[['codigo', 'nombre', 'cliente', 'direccion', 'presupuesto_total', 'avance_meta', 'avance_real', 'estado', 'latitud', 'longitud']], use_container_width=True)
+            st.dataframe(
+                df_obras[['codigo', 'nombre', 'cliente', 'calle', 'codigo_postal', 'ciudad', 'estado_provincia', 'presupuesto_total', 'avance_meta', 'avance_real', 'estado']], 
+                column_config={"presupuesto_total": st.column_config.NumberColumn("Presupuesto", format="$%,.2f")},
+                use_container_width=True
+            )
         else:
             st.info("No hay proyectos registrados.")
 
     with tab2:
         with st.form("form_nueva_obra"):
-            codigo = st.text_input(t["lbl_code"])
-            nombre = st.text_input(t["lbl_name"])
-            cliente = st.text_input(t["lbl_client"])
-            direccion = st.text_input(t["lbl_address"])
-            presupuesto = st.number_input(t["lbl_budget"], min_value=0.0, step=10000.0)
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                codigo = st.text_input(t["lbl_code"])
+                nombre = st.text_input(t["lbl_name"])
+                cliente = st.text_input(t["lbl_client"])
+                presupuesto = st.number_input(t["lbl_budget"], min_value=0.0, step=10000.0)
             
+            with col_b2:
+                calle = st.text_input(t["lbl_calle"])
+                c_cp, c_city, c_st = st.columns(3)
+                with c_cp:
+                    cp = st.text_input(t["lbl_cp"])
+                with c_city:
+                    ciudad = st.text_input(t["lbl_city"])
+                with c_st:
+                    estado_prov = st.text_input(t["lbl_state"])
+
             c_meta, c_real = st.columns(2)
             with c_meta:
                 avance_meta = st.number_input(t["lbl_target_prog"], min_value=0.0, max_value=100.0, value=0.0, step=5.0)
@@ -786,21 +858,20 @@ elif menu_sel == t["nav_obras"]:
                 if codigo and nombre and cliente:
                     lat_final, lon_final = latitud_manual, longitud_manual
                     
-                    # Si no introdujo lat/lon manuales, buscar por dirección automáticamente
-                    if lat_final == 0.0 and lon_final == 0.0 and direccion:
-                        lat_geo, lon_geo = geocode_address(direccion)
+                    if lat_final == 0.0 and lon_final == 0.0:
+                        lat_geo, lon_geo = geocode_address(calle, cp, ciudad, estado_prov)
                         if lat_geo and lon_geo:
                             lat_final, lon_final = lat_geo, lon_geo
                             st.info(f"📍 Coordenadas encontradas automáticamente: Lat {lat_final}, Lon {lon_final}")
                         else:
-                            st.warning("⚠️ No se pudieron obtener coordenadas exactas de esa dirección, la obra se guardará de todos modos.")
+                            st.warning("⚠️ No se pudieron obtener coordenadas GPS automáticamente con esa dirección, la obra se guardará de todos modos.")
 
                     try:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
-                                "INSERT INTO proyectos (codigo, nombre, cliente, direccion, presupuesto_total, avance_meta, avance_real, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                (codigo, nombre, cliente, direccion, presupuesto, avance_meta, avance_real, lat_final, lon_final)
+                                "INSERT INTO proyectos (codigo, nombre, cliente, calle, codigo_postal, ciudad, estado_provincia, presupuesto_total, avance_meta, avance_real, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (codigo, nombre, cliente, calle, cp, ciudad, estado_prov, presupuesto, avance_meta, avance_real, lat_final, lon_final)
                             )
                             conn.commit()
                         clear_data_cache()
@@ -810,7 +881,7 @@ elif menu_sel == t["nav_obras"]:
                         st.error(f"Error: {e}")
 
     with tab3:
-        st.subheader("🗑️ Eliminar Obra o Cliente")
+        st.subheader("🗑️ Eliminar Obra")
         df_obras_del = get_proyectos_df()
         
         if not df_obras_del.empty:
@@ -818,19 +889,20 @@ elif menu_sel == t["nav_obras"]:
             obra_sel_del = st.selectbox("Seleccionar Proyecto a Borrar", list(proyectos_dict_del.keys()))
             id_borrar = proyectos_dict_del[obra_sel_del]
             
-            st.error(f"⚠️ **ATENCIÓN**: Esta acción eliminará permanentemente la obra seleccionada y **todos los registros asociados** (Costos, Cuentas por Pagar y Requisiciones).")
+            st.error(f"⚠️ **ATENCIÓN**: Esta acción eliminará permanentemente la obra seleccionada y **todos sus registros asociados** (Trabajadores, Costos, CxP y Requisiciones).")
             
             if st.button("❌ Confirmar y Borrar Obra", type="primary"):
                 try:
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
+                        c.execute("UPDATE trabajadores SET proyecto_id = NULL WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM costos WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM cuentas_por_pagar WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM requisiciones WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM proyectos WHERE id = ?", (id_borrar,))
                         conn.commit()
                     clear_data_cache()
-                    st.success("La obra y sus registros asociados se eliminaron correctamente.")
+                    st.success("La obra se eliminó correctamente.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al eliminar la obra: {e}")
@@ -838,7 +910,91 @@ elif menu_sel == t["nav_obras"]:
             st.info("No hay proyectos registrados para eliminar.")
 
 # ==========================================
-# 3. COSTOS
+# 3. TRABAJADORES & PERSONAL POR OBRA
+# ==========================================
+elif menu_sel == t["nav_workers"]:
+    st.markdown(f"<div class='main-header'>{t['workers_title']}</div>", unsafe_allow_html=True)
+    
+    proyectos_df = get_proyectos_df()
+    proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id'])) if not proyectos_df.empty else {}
+    
+    tab1, tab2 = st.tabs([t["tab_workers_list"], t["tab_new_worker"]])
+
+    with tab1:
+        trabajadores_df = get_trabajadores_df()
+        
+        if not trabajadores_df.empty:
+            col_f1, col_f2 = st.columns([1, 1.5])
+            with col_f1:
+                filtro_obra = st.selectbox("Filtrar por Obra", ["Todas las Obras"] + list(proyectos_dict.keys()))
+            
+            df_mostrar = trabajadores_df.copy()
+            if filtro_obra != "Todas las Obras":
+                df_mostrar = df_mostrar[df_mostrar['proyecto'] == filtro_obra]
+                
+            st.dataframe(
+                df_mostrar[['id', 'nombre_completo', 'puesto', 'telefono', 'proyecto', 'estatus', 'fecha_registro']],
+                column_config={
+                    "id": "ID",
+                    "nombre_completo": "Trabajador",
+                    "puesto": "Puesto / Especialidad",
+                    "telefono": "Teléfono",
+                    "proyecto": "Obra Asignada",
+                    "estatus": "Estatus"
+                },
+                use_container_width=True
+            )
+            
+            st.markdown("---")
+            st.subheader("🔄 Reasignar Trabajador a Otra Obra")
+            
+            with st.form("form_reasignar_trabajador"):
+                trabajador_dict = dict(zip(trabajadores_df['nombre_completo'] + " (" + trabajadores_df['puesto'] + ")", trabajadores_df['id']))
+                trabajador_sel = st.selectbox("Seleccionar Trabajador", list(trabajador_dict.keys()))
+                nueva_obra_sel = st.selectbox("Nueva Obra Asignada", ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()))
+                
+                if st.form_submit_button("Guardar Cambios de Asignación"):
+                    trab_id = trabajador_dict[trabajador_sel]
+                    nueva_obra_id = proyectos_dict[nueva_obra_sel] if nueva_obra_sel != "Sin Asignar / Oficina" else None
+                    
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("UPDATE trabajadores SET proyecto_id = ? WHERE id = ?", (nueva_obra_id, trab_id))
+                        conn.commit()
+                    clear_data_cache()
+                    st.success("Reasignación completada correctamente.")
+                    st.rerun()
+        else:
+            st.info("No hay trabajadores registrados en la base de datos.")
+
+    with tab2:
+        with st.form("form_nuevo_trabajador"):
+            w_nombre = st.text_input(t["lbl_worker_name"])
+            w_puesto = st.text_input(t["lbl_position"])
+            w_telefono = st.text_input(t["lbl_phone"])
+            
+            opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
+            w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
+            
+            if st.form_submit_button(t["btn_save_worker"]):
+                if w_nombre and w_puesto:
+                    obra_id_val = proyectos_dict[w_obra] if w_obra != "Sin Asignar / Oficina" else None
+                    try:
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute(
+                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id) VALUES (?, ?, ?, ?)",
+                                (w_nombre, w_puesto, w_telefono, obra_id_val)
+                            )
+                            conn.commit()
+                        clear_data_cache()
+                        st.success(t["msg_worker_success"])
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar trabajador: {e}")
+
+# ==========================================
+# 4. COSTOS
 # ==========================================
 elif menu_sel == t["nav_costos"]:
     st.markdown(f"<div class='main-header'>{t['costos_title']}</div>", unsafe_allow_html=True)
@@ -893,7 +1049,7 @@ elif menu_sel == t["nav_costos"]:
                 st.info("Sin registros de costos para esta obra.")
 
 # ==========================================
-# 4. CUENTAS POR PAGAR (CxP)
+# 5. CUENTAS POR PAGAR (CxP)
 # ==========================================
 elif menu_sel == t["nav_cxp"]:
     st.markdown(f"<div class='main-header'>{t['cxp_title']}</div>", unsafe_allow_html=True)
@@ -974,7 +1130,7 @@ elif menu_sel == t["nav_cxp"]:
                         st.rerun()
 
 # ==========================================
-# 5. REQUISICIONES DE CAMPO
+# 6. REQUISICIONES DE CAMPO
 # ==========================================
 elif menu_sel == t["nav_req"]:
     st.markdown(f"<div class='main-header'>{t['req_title']}</div>", unsafe_allow_html=True)
@@ -1022,7 +1178,7 @@ elif menu_sel == t["nav_req"]:
                         st.rerun()
 
 # ==========================================
-# 6. USUARIOS MAESTROS
+# 7. USUARIOS MAESTROS
 # ==========================================
 elif menu_sel == t["nav_users"]:
     st.markdown(f"<div class='main-header'>{t['users_title']}</div>", unsafe_allow_html=True)
