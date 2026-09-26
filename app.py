@@ -282,7 +282,7 @@ TEXTS = {
 }
 
 # ==========================================
-# BASE DE DATOS & SEGURIDAD (PBKDF2)
+# BASE DE DATOS & SEGURIDAD (MIGRACIÓN AUTO)
 # ==========================================
 def make_hashes(password, salt=None):
     if not salt:
@@ -304,6 +304,7 @@ def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         
+        # Tabla de usuarios
         c.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -321,29 +322,45 @@ def init_db():
                 ("admin", make_hashes("admin123"), "Usuario Maestro", "Usuario Maestro")
             )
 
+        # Tabla de proyectos
         c.execute('''
             CREATE TABLE IF NOT EXISTS proyectos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT UNIQUE NOT NULL,
                 nombre TEXT NOT NULL,
-                cliente TEXT NOT NULL,
-                presupuesto_total REAL NOT NULL,
+                cliente TEXT DEFAULT '',
+                presupuesto_total REAL DEFAULT 0.0,
                 avance_meta REAL DEFAULT 0.0,
                 avance_real REAL DEFAULT 0.0,
-                latitud REAL,
-                longitud REAL,
+                latitud REAL DEFAULT 0.0,
+                longitud REAL DEFAULT 0.0,
                 estado TEXT DEFAULT 'En Proceso',
                 fecha_inicio DATE DEFAULT CURRENT_DATE
             )
         ''')
 
+        # AUTO-MIGRACIÓN: Comprobar y agregar automáticamente cualquier columna faltante
         c.execute("PRAGMA table_info(proyectos)")
-        cols = [col[1] for col in c.fetchall()]
-        if 'avance_meta' not in cols:
-            c.execute("ALTER TABLE proyectos ADD COLUMN avance_meta REAL DEFAULT 0.0")
-        if 'avance_real' not in cols:
-            c.execute("ALTER TABLE proyectos ADD COLUMN avance_real REAL DEFAULT 0.0")
+        existing_cols = [col[1] for col in c.fetchall()]
+        
+        cols_to_check = {
+            'codigo': "TEXT DEFAULT ''",
+            'nombre': "TEXT DEFAULT ''",
+            'cliente': "TEXT DEFAULT ''",
+            'presupuesto_total': "REAL DEFAULT 0.0",
+            'avance_meta': "REAL DEFAULT 0.0",
+            'avance_real': "REAL DEFAULT 0.0",
+            'latitud': "REAL DEFAULT 0.0",
+            'longitud': "REAL DEFAULT 0.0",
+            'estado': "TEXT DEFAULT 'En Proceso'",
+            'fecha_inicio': "DATE DEFAULT CURRENT_DATE"
+        }
+        
+        for col_name, col_def in cols_to_check.items():
+            if col_name not in existing_cols:
+                c.execute(f"ALTER TABLE proyectos ADD COLUMN {col_name} {col_def}")
 
+        # Tabla de costos
         c.execute('''
             CREATE TABLE IF NOT EXISTS costos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -358,6 +375,7 @@ def init_db():
             )
         ''')
 
+        # Tabla de cuentas por pagar
         c.execute('''
             CREATE TABLE IF NOT EXISTS cuentas_por_pagar (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -373,6 +391,7 @@ def init_db():
             )
         ''')
 
+        # Tabla de requisiciones
         c.execute('''
             CREATE TABLE IF NOT EXISTS requisiciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -569,7 +588,7 @@ if menu_sel == t["nav_director"]:
                 )
                 st.plotly_chart(fig_curva, use_container_width=True)
             else:
-                st.info("Sin suficientes datos historicos de costos para generar la curva acumulada.")
+                st.info("Sin suficientes datos históricos de costos para generar la curva acumulada.")
 
         with col_dir2:
             st.subheader(t["dir_status_summary"])
