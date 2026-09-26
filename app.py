@@ -1082,20 +1082,20 @@ elif menu_sel == t["nav_obras"]:
       if not df_mapa.empty:
         st.pydeck_chart(
             pdk.Deck(
-                map_style="mapbox://styles/mapbox/light-v10",
+                map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
                 initial_view_state=pdk.ViewState(
                     latitude=df_mapa["latitud"].mean(),
                     longitude=df_mapa["longitud"].mean(),
-                    zoom=11,
-                    pitch=35,
+                    zoom=10,
+                    pitch=30,
                 ),
                 layers=[
                     pdk.Layer(
                         "ScatterplotLayer",
                         data=df_mapa,
                         get_position="[longitud, latitud]",
-                        get_color="[2, 132, 199, 220]",
-                        get_radius=180,
+                        get_color="[2, 132, 199, 230]",
+                        get_radius=400,
                         pickable=True,
                         auto_highlight=True,
                     ),
@@ -1119,8 +1119,8 @@ elif menu_sel == t["nav_obras"]:
         )
       else:
         st.info(
-            "Registra direcciones válidas para mostrar las obras en el mapa"
-            " interactivo."
+            "📍 Registra o edita una obra con una dirección válida (ej."
+            " Ciudad, Estado) para ubicarla en el mapa."
         )
 
       st.markdown("---")
@@ -1214,11 +1214,6 @@ elif menu_sel == t["nav_obras"]:
               st.info(
                   "📍 Coordenadas encontradas automáticamente: Lat"
                   f" {lat_final}, Lon {lon_final}"
-              )
-            else:
-              st.warning(
-                  "⚠️ No se pudieron obtener coordenadas GPS automáticamente"
-                  " con esa dirección, la obra se guardará de todos modos."
               )
 
           try:
@@ -1323,7 +1318,6 @@ elif menu_sel == t["nav_obras"]:
           )
 
         if st.form_submit_button("💾 Guardar Cambios"):
-          # Recalcular geocodificación si cambió la dirección
           lat_edit, lon_edit = float(row_edit["latitud"]), float(
               row_edit["longitud"]
           )
@@ -1331,6 +1325,7 @@ elif menu_sel == t["nav_obras"]:
               e_calle != row_edit["calle"]
               or e_ciudad != row_edit["ciudad"]
               or e_estado_prov != row_edit["estado_provincia"]
+              or (lat_edit == 0.0 and lon_edit == 0.0)
           ):
             new_lat, new_lon = geocode_address(
                 e_calle, e_cp, e_ciudad, e_estado_prov
@@ -1804,9 +1799,7 @@ elif menu_sel == t["nav_req"]:
         st.markdown("---")
         st.subheader("🔄 Cambiar Estatus de Requisición")
         with st.form("form_estatus_req"):
-          req_id_sel = st.selectbox(
-              "ID Requisición", req_df["id"].tolist()
-          )
+          req_id_sel = st.selectbox("ID Requisición", req_df["id"].tolist())
           nuevo_estatus_req = st.selectbox(
               "Nuevo Estatus",
               ["Pendiente", "Aprobado", "Entregado", "Rechazado"],
