@@ -1,17 +1,17 @@
-import streamlit as st
-import pandas as pd
+import json
+import os
+import secrets
+import sqlite3
+import urllib.parse
+import urllib.request
+from datetime import datetime
+
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import pydeck as pdk
-import sqlite3
-import hashlib
-import secrets
-import os
-import urllib.request
-import urllib.parse
-import json
-from datetime import datetime
+import streamlit as st
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA
@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="Rattlesnake System",
     page_icon="🐍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 DB_PATH = "database/erp_local.db"
@@ -28,7 +28,8 @@ DB_PATH = "database/erp_local.db"
 # ==========================================
 # ESTILOS CSS (TEMA CLARO / LIGHT MODE)
 # ==========================================
-st.markdown("""
+st.markdown(
+    """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         
@@ -107,7 +108,9 @@ st.markdown("""
             color: #475569 !important;
         }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ==========================================
 # DICCIONARIO BILINGÜE (i18n)
@@ -148,9 +151,10 @@ TEXTS = {
         "metric_available": "Margen / Disponible",
         "chart_cat": "Desglose de Costos por Categoría",
         "chart_comp": "Presupuesto vs Costo Real por Proyecto",
-        "obras_title": "🏗️ Gestión de Obras & Ubicación por Dirección",
+        "obras_title": "🏗️ Gestión de Obras, Edición & Avance Físico",
         "tab_map": "🗺️ Mapa & Listado de Obras",
         "tab_new_obra": "➕ Registrar Nueva Obra",
+        "tab_edit_obra": "✏️ Editar Obra & Avance Físico",
         "tab_del_obra": "🗑️ Eliminar Obra",
         "lbl_code": "Código de Obra",
         "lbl_name": "Nombre de la Obra / Proyecto",
@@ -170,7 +174,9 @@ TEXTS = {
         "tab_workers_list": "📌 Lista & Asignación de Personal",
         "tab_new_worker": "➕ Registrar Nuevo Trabajador",
         "lbl_worker_name": "Nombre Completo del Trabajador",
-        "lbl_position": "Puesto / Especialidad (ej. Albañil, Plomero, Residente)",
+        "lbl_position": (
+            "Puesto / Especialidad (ej. Albañil, Plomero, Residente)"
+        ),
         "lbl_phone": "Teléfono de Contacto",
         "lbl_assign_obra": "Asignar a Obra",
         "btn_save_worker": "Registrar Trabajador",
@@ -195,7 +201,9 @@ TEXTS = {
         "btn_pay": "Aplicar Pago / Abono",
         "lbl_cxp_id": "ID Cuenta por Pagar",
         "lbl_pay_amount": "Monto a Abonar ($)",
-        "msg_pay_success": "Abono/Pago aplicado correctamente y reflejado en costos.",
+        "msg_pay_success": (
+            "Abono/Pago aplicado correctamente y reflejado en costos."
+        ),
         "req_title": "📋 Requisiciones de Insumos & Materiales de Campo",
         "tab_active_req": "📌 Requisiciones Solicitadas",
         "tab_new_req": "➕ Nueva Requisición",
@@ -211,7 +219,7 @@ TEXTS = {
         "lbl_fullname": "Nombre Completo",
         "btn_create_user": "Dar de Alta Usuario Maestro",
         "msg_user_success": "Usuario Maestro creado con éxito.",
-        "users_list": "Usuarios Registrados en el Sistema"
+        "users_list": "Usuarios Registrados en el Sistema",
     },
     "EN": {
         "app_title": "Rattlesnake System",
@@ -248,9 +256,10 @@ TEXTS = {
         "metric_available": "Margin / Available",
         "chart_cat": "Cost Breakdown by Category",
         "chart_comp": "Budget vs Actual Cost per Project",
-        "obras_title": "🏗️ Project Management & Detailed Address",
+        "obras_title": "🏗️ Project Management, Editing & Progress",
         "tab_map": "MAP & Project List",
         "tab_new_obra": "➕ Register New Project",
+        "tab_edit_obra": "✏️ Edit Project & Progress",
         "tab_del_obra": "🗑️ Delete Project",
         "lbl_code": "Project Code",
         "lbl_name": "Project Name",
@@ -270,7 +279,9 @@ TEXTS = {
         "tab_workers_list": "📌 Staff List & Assignment",
         "tab_new_worker": "➕ Register New Worker",
         "lbl_worker_name": "Worker Full Name",
-        "lbl_position": "Role / Specialty (e.g. Mason, Plumber, Supervisor)",
+        "lbl_position": (
+            "Role / Specialty (e.g. Mason, Plumber, Supervisor)"
+        ),
         "lbl_phone": "Phone Number",
         "lbl_assign_obra": "Assign to Site",
         "btn_save_worker": "Register Worker",
@@ -295,7 +306,9 @@ TEXTS = {
         "btn_pay": "Apply Payment / Partial",
         "lbl_cxp_id": "AP Account ID",
         "lbl_pay_amount": "Amount to Pay ($)",
-        "msg_pay_success": "Payment applied successfully and recorded under expenses.",
+        "msg_pay_success": (
+            "Payment applied successfully and recorded under expenses."
+        ),
         "req_title": "📋 Field Materials & Supply Requisitions",
         "tab_active_req": "📌 Active Requisitions",
         "tab_new_req": "➕ New Requisition",
@@ -311,56 +324,72 @@ TEXTS = {
         "lbl_fullname": "Full Name",
         "btn_create_user": "Register Master User",
         "msg_user_success": "Master User registered successfully.",
-        "users_list": "Registered System Users"
-    }
+        "users_list": "Registered System Users",
+    },
 }
+
 
 # ==========================================
 # GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
 # ==========================================
 def geocode_address(calle, cp, ciudad, estado):
-    partes = [p.strip() for p in [calle, cp, ciudad, estado] if p and p.strip()]
-    direccion_completa = ", ".join(partes)
-    
-    if not direccion_completa:
-        return None, None
-    try:
-        encoded = urllib.parse.quote(direccion_completa)
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
-        req = urllib.request.Request(url, headers={'User-Agent': 'RattlesnakeERP/1.0'})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            if data:
-                return float(data[0]['lat']), float(data[0]['lon'])
-    except Exception:
-        pass
+  partes = [p.strip() for p in [calle, cp, ciudad, estado] if p and p.strip()]
+  direccion_completa = ", ".join(partes)
+
+  if not direccion_completa:
     return None, None
+  try:
+    encoded = urllib.parse.quote(direccion_completa)
+    url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "RattlesnakeERP/1.0"}
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+      data = json.loads(resp.read().decode())
+      if data:
+        return float(data[0]["lat"]), float(data[0]["lon"])
+  except Exception:
+    pass
+  return None, None
+
 
 # ==========================================
-# BASE DE DATOS & SEGURIDAD (MIGRACIÓN AUTO)
+# BASE DE DATOS & SEGURIDAD (MIGRACIÓN ROBUSTA)
 # ==========================================
 def make_hashes(password, salt=None):
-    if not salt:
-        salt = secrets.token_hex(16)
-    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
-    return f"{salt}${key.hex()}"
+  if not salt:
+    salt = secrets.token_hex(16)
+  key = hashlib.pbkdf2_hmac(
+      "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
+  )
+  return f"{salt}${key.hex()}"
+
 
 def check_hashes(password, hashed_text):
-    try:
-        if '$' not in hashed_text:
-            return hashlib.sha256(password.encode()).hexdigest() == hashed_text
-        salt, _ = hashed_text.split('$')
-        return make_hashes(password, salt) == hashed_text
-    except Exception:
-        return False
+  try:
+    if "$" not in hashed_text:
+      return hashlib.sha256(password.encode()).hexdigest() == hashed_text
+    salt, _ = hashed_text.split("$")
+    return make_hashes(password, salt) == hashed_text
+  except Exception:
+    return False
+
+
+def ensure_columns(cursor, table_name, columns_dict):
+  cursor.execute(f"PRAGMA table_info({table_name})")
+  existing_cols = [col[1] for col in cursor.fetchall()]
+  for col_name, col_def in columns_dict.items():
+    if col_name not in existing_cols:
+      cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
+
 
 def init_db():
-    os.makedirs("database", exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        
-        # Tabla de usuarios
-        c.execute('''
+  os.makedirs("database", exist_ok=True)
+  with sqlite3.connect(DB_PATH) as conn:
+    c = conn.cursor()
+
+    # 1. Usuarios
+    c.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
@@ -368,17 +397,33 @@ def init_db():
                 nombre_completo TEXT NOT NULL,
                 rol TEXT DEFAULT 'Usuario Maestro'
             )
-        ''')
-        
-        c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
-        if not c.fetchone():
-            c.execute(
-                "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-                ("admin", make_hashes("admin123"), "Usuario Maestro", "Usuario Maestro")
-            )
+        """)
+    ensure_columns(
+        c,
+        "usuarios",
+        {
+            "username": "TEXT DEFAULT ''",
+            "password": "TEXT DEFAULT ''",
+            "nombre_completo": "TEXT DEFAULT ''",
+            "rol": "TEXT DEFAULT 'Usuario Maestro'",
+        },
+    )
 
-        # Tabla de proyectos
-        c.execute('''
+    c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
+    if not c.fetchone():
+      c.execute(
+          "INSERT INTO usuarios (username, password, nombre_completo, rol)"
+          " VALUES (?, ?, ?, ?)",
+          (
+              "admin",
+              make_hashes("admin123"),
+              "Usuario Maestro",
+              "Usuario Maestro",
+          ),
+      )
+
+    # 2. Proyectos
+    c.execute("""
             CREATE TABLE IF NOT EXISTS proyectos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT UNIQUE NOT NULL,
@@ -396,35 +441,30 @@ def init_db():
                 estado TEXT DEFAULT 'En Proceso',
                 fecha_inicio DATE DEFAULT CURRENT_DATE
             )
-        ''')
+        """)
+    ensure_columns(
+        c,
+        "proyectos",
+        {
+            "codigo": "TEXT DEFAULT ''",
+            "nombre": "TEXT DEFAULT ''",
+            "cliente": "TEXT DEFAULT ''",
+            "calle": "TEXT DEFAULT ''",
+            "codigo_postal": "TEXT DEFAULT ''",
+            "ciudad": "TEXT DEFAULT ''",
+            "estado_provincia": "TEXT DEFAULT ''",
+            "presupuesto_total": "REAL DEFAULT 0.0",
+            "avance_meta": "REAL DEFAULT 0.0",
+            "avance_real": "REAL DEFAULT 0.0",
+            "latitud": "REAL DEFAULT 0.0",
+            "longitud": "REAL DEFAULT 0.0",
+            "estado": "TEXT DEFAULT 'En Proceso'",
+            "fecha_inicio": "DATE DEFAULT CURRENT_DATE",
+        },
+    )
 
-        # AUTO-MIGRACIÓN: Comprobar y agregar automáticamente cualquier columna faltante
-        c.execute("PRAGMA table_info(proyectos)")
-        existing_cols = [col[1] for col in c.fetchall()]
-        
-        cols_to_check = {
-            'codigo': "TEXT DEFAULT ''",
-            'nombre': "TEXT DEFAULT ''",
-            'cliente': "TEXT DEFAULT ''",
-            'calle': "TEXT DEFAULT ''",
-            'codigo_postal': "TEXT DEFAULT ''",
-            'ciudad': "TEXT DEFAULT ''",
-            'estado_provincia': "TEXT DEFAULT ''",
-            'presupuesto_total': "REAL DEFAULT 0.0",
-            'avance_meta': "REAL DEFAULT 0.0",
-            'avance_real': "REAL DEFAULT 0.0",
-            'latitud': "REAL DEFAULT 0.0",
-            'longitud': "REAL DEFAULT 0.0",
-            'estado': "TEXT DEFAULT 'En Proceso'",
-            'fecha_inicio': "DATE DEFAULT CURRENT_DATE"
-        }
-        
-        for col_name, col_def in cols_to_check.items():
-            if col_name not in existing_cols:
-                c.execute(f"ALTER TABLE proyectos ADD COLUMN {col_name} {col_def}")
-
-        # Tabla de trabajadores
-        c.execute('''
+    # 3. Trabajadores
+    c.execute("""
             CREATE TABLE IF NOT EXISTS trabajadores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre_completo TEXT NOT NULL,
@@ -435,10 +475,22 @@ def init_db():
                 fecha_registro DATE DEFAULT CURRENT_DATE,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
             )
-        ''')
+        """)
+    ensure_columns(
+        c,
+        "trabajadores",
+        {
+            "nombre_completo": "TEXT DEFAULT ''",
+            "puesto": "TEXT DEFAULT ''",
+            "telefono": "TEXT DEFAULT ''",
+            "proyecto_id": "INTEGER",
+            "estatus": "TEXT DEFAULT 'Activo'",
+            "fecha_registro": "DATE DEFAULT CURRENT_DATE",
+        },
+    )
 
-        # Tabla de costos
-        c.execute('''
+    # 4. Costos
+    c.execute("""
             CREATE TABLE IF NOT EXISTS costos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 proyecto_id INTEGER,
@@ -450,10 +502,23 @@ def init_db():
                 observaciones TEXT,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
             )
-        ''')
+        """)
+    ensure_columns(
+        c,
+        "costos",
+        {
+            "proyecto_id": "INTEGER",
+            "categoria": "TEXT DEFAULT ''",
+            "concepto": "TEXT DEFAULT ''",
+            "monto": "REAL DEFAULT 0.0",
+            "fecha": "DATE DEFAULT CURRENT_DATE",
+            "registrado_por": "TEXT DEFAULT ''",
+            "observaciones": "TEXT DEFAULT ''",
+        },
+    )
 
-        # Tabla de cuentas por pagar
-        c.execute('''
+    # 5. Cuentas por pagar
+    c.execute("""
             CREATE TABLE IF NOT EXISTS cuentas_por_pagar (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 proyecto_id INTEGER,
@@ -466,10 +531,24 @@ def init_db():
                 registrado_por TEXT NOT NULL,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
             )
-        ''')
+        """)
+    ensure_columns(
+        c,
+        "cuentas_por_pagar",
+        {
+            "proyecto_id": "INTEGER",
+            "proveedor": "TEXT DEFAULT ''",
+            "concepto": "TEXT DEFAULT ''",
+            "monto_total": "REAL DEFAULT 0.0",
+            "monto_pagado": "REAL DEFAULT 0.0",
+            "estatus": "TEXT DEFAULT 'Pendiente'",
+            "fecha_vencimiento": "DATE",
+            "registrado_por": "TEXT DEFAULT ''",
+        },
+    )
 
-        # Tabla de requisiciones
-        c.execute('''
+    # 6. Requisiciones
+    c.execute("""
             CREATE TABLE IF NOT EXISTS requisiciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 proyecto_id INTEGER,
@@ -482,102 +561,188 @@ def init_db():
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
             )
-        ''')
-        conn.commit()
+        """)
+    ensure_columns(
+        c,
+        "requisiciones",
+        {
+            "proyecto_id": "INTEGER",
+            "insumo": "TEXT DEFAULT ''",
+            "cantidad": "REAL DEFAULT 0.0",
+            "unidad": "TEXT DEFAULT ''",
+            "prioridad": "TEXT DEFAULT 'Normal'",
+            "solicitado_por": "TEXT DEFAULT ''",
+            "estatus": "TEXT DEFAULT 'Pendiente'",
+            "fecha": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        },
+    )
+
+    conn.commit()
+
 
 init_db()
+
 
 # ==========================================
 # FUNCIONES CON CACHÉ DE BASE DE DATOS
 # ==========================================
 @st.cache_data(ttl=60)
 def get_proyectos_df():
-    with sqlite3.connect(DB_PATH) as conn:
-        return pd.read_sql_query("SELECT * FROM proyectos ORDER BY id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    return pd.read_sql_query("SELECT * FROM proyectos ORDER BY id DESC", conn)
+
 
 @st.cache_data(ttl=60)
 def get_trabajadores_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT t.*, p.nombre as proyecto FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id WHERE t.proyecto_id = ? ORDER BY t.id DESC", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT t.*, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id ORDER BY t.id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    if proyecto_id:
+      return pd.read_sql_query(
+          "SELECT t.*, p.nombre as proyecto FROM trabajadores t LEFT JOIN"
+          " proyectos p ON t.proyecto_id = p.id WHERE t.proyecto_id = ? ORDER"
+          " BY t.id DESC",
+          conn,
+          params=(proyecto_id,),
+      )
+    return pd.read_sql_query(
+        "SELECT t.*, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto"
+        " FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id"
+        " ORDER BY t.id DESC",
+        conn,
+    )
+
 
 @st.cache_data(ttl=60)
 def get_costos_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id WHERE c.proyecto_id = ? ORDER BY c.id DESC", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id ORDER BY c.id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    if proyecto_id:
+      return pd.read_sql_query(
+          "SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON"
+          " c.proyecto_id = p.id WHERE c.proyecto_id = ? ORDER BY c.id DESC",
+          conn,
+          params=(proyecto_id,),
+      )
+    return pd.read_sql_query(
+        "SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON"
+        " c.proyecto_id = p.id ORDER BY c.id DESC",
+        conn,
+    )
+
 
 @st.cache_data(ttl=60)
 def get_cxp_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id WHERE cxp.proyecto_id = ? ORDER BY cxp.id DESC", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id ORDER BY cxp.id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    if proyecto_id:
+      return pd.read_sql_query(
+          "SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN"
+          " proyectos p ON cxp.proyecto_id = p.id WHERE cxp.proyecto_id = ?"
+          " ORDER BY cxp.id DESC",
+          conn,
+          params=(proyecto_id,),
+      )
+    return pd.read_sql_query(
+        "SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN"
+        " proyectos p ON cxp.proyecto_id = p.id ORDER BY cxp.id DESC",
+        conn,
+    )
+
 
 @st.cache_data(ttl=60)
 def get_requisiciones_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id WHERE r.proyecto_id = ? ORDER BY r.id DESC", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id ORDER BY r.id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    if proyecto_id:
+      return pd.read_sql_query(
+          "SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN"
+          " proyectos p ON r.proyecto_id = p.id WHERE r.proyecto_id = ? ORDER"
+          " BY r.id DESC",
+          conn,
+          params=(proyecto_id,),
+      )
+    return pd.read_sql_query(
+        "SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos"
+        " p ON r.proyecto_id = p.id ORDER BY r.id DESC",
+        conn,
+    )
+
 
 @st.cache_data(ttl=60)
 def get_usuarios_df():
-    with sqlite3.connect(DB_PATH) as conn:
-        return pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios ORDER BY id DESC", conn)
+  with sqlite3.connect(DB_PATH) as conn:
+    return pd.read_sql_query(
+        "SELECT id, username, nombre_completo, rol FROM usuarios ORDER BY id"
+        " DESC",
+        conn,
+    )
+
 
 def clear_data_cache():
-    st.cache_data.clear()
+  st.cache_data.clear()
+
 
 # ==========================================
 # MANEJO DE SESIÓN
 # ==========================================
-if 'lang' not in st.session_state:
-    st.session_state['lang'] = 'ES'
+if "lang" not in st.session_state:
+  st.session_state["lang"] = "ES"
 
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-    st.session_state['user_info'] = None
+if "logged_in" not in st.session_state:
+  st.session_state["logged_in"] = False
+  st.session_state["user_info"] = None
 
-t = TEXTS[st.session_state['lang']]
+t = TEXTS[st.session_state["lang"]]
 
 # ==========================================
 # PANTALLA DE LOGIN
 # ==========================================
-if not st.session_state['logged_in']:
-    st.markdown(f"<h1 style='text-align: center; margin-top: 50px; color: #0F172A;'>🐍 {t['app_title']}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; color: #64748B;'>{t['app_subtitle']}</p>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        st.subheader(t["login_title"])
-        username = st.text_input(t["user_label"])
-        password = st.text_input(t["pass_label"], type="password")
-        
-        if st.button(t["btn_login"], use_container_width=True):
-            with sqlite3.connect(DB_PATH) as conn:
-                c = conn.cursor()
-                c.execute('SELECT username, password, nombre_completo, rol FROM usuarios WHERE username = ?', (username,))
-                data = c.fetchone()
-            
-            if data and check_hashes(password, data[1]):
-                st.session_state['logged_in'] = True
-                st.session_state['user_info'] = {"username": data[0], "nombre": data[2], "rol": data[3]}
-                st.rerun()
-            else:
-                st.error(t["err_login"])
-        
-        st.info(f"{t['demo_info']}\n- User: `admin`\n- Password: `admin123`")
-    st.stop()
+if not st.session_state["logged_in"]:
+  st.markdown(
+      "<h1 style='text-align: center; margin-top: 50px; color: #0F172A;'>🐍"
+      f" {t['app_title']}</h1>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='text-align: center; color:"
+      f" #64748B;'>{t['app_subtitle']}</p>",
+      unsafe_allow_html=True,
+  )
+
+  col1, col2, col3 = st.columns([1, 1.2, 1])
+  with col2:
+    st.subheader(t["login_title"])
+    username = st.text_input(t["user_label"])
+    password = st.text_input(t["pass_label"], type="password")
+
+    if st.button(t["btn_login"], use_container_width=True):
+      with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT username, password, nombre_completo, rol FROM usuarios"
+            " WHERE username = ?",
+            (username,),
+        )
+        data = c.fetchone()
+
+      if data and check_hashes(password, data[1]):
+        st.session_state["logged_in"] = True
+        st.session_state["user_info"] = {
+            "username": data[0],
+            "nombre": data[2],
+            "rol": data[3],
+        }
+        st.rerun()
+      else:
+        st.error(t["err_login"])
+
+    st.info(f"{t['demo_info']}\n- User: `admin`\n- Password: `admin123`")
+  st.stop()
 
 # ==========================================
 # BARRA LATERAL (Navegación & Ajustes)
 # ==========================================
-user = st.session_state['user_info']
+user = st.session_state["user_info"]
 
-st.sidebar.markdown(f"<h2 class='brand-header'>🐍 {t['app_title']}</h2>", unsafe_allow_html=True)
+st.sidebar.markdown(
+    f"<h2 class='brand-header'>🐍 {t['app_title']}</h2>", unsafe_allow_html=True
+)
 st.sidebar.caption(f"{t['app_subtitle']}")
 st.sidebar.markdown("---")
 
@@ -589,7 +754,7 @@ opciones_menu = [
     t["nav_costos"],
     t["nav_cxp"],
     t["nav_req"],
-    t["nav_users"]
+    t["nav_users"],
 ]
 
 menu_sel = st.sidebar.radio(t["nav_title"], opciones_menu)
@@ -597,619 +762,1151 @@ menu_sel = st.sidebar.radio(t["nav_title"], opciones_menu)
 st.sidebar.markdown("---")
 
 lang_choice = st.sidebar.selectbox(
-    t["lang_selector"], 
-    ["Español (ES)", "English (EN)"], 
-    index=0 if st.session_state['lang'] == 'ES' else 1
+    t["lang_selector"],
+    ["Español (ES)", "English (EN)"],
+    index=0 if st.session_state["lang"] == "ES" else 1,
 )
 new_lang = "ES" if "Español" in lang_choice else "EN"
 
-if new_lang != st.session_state['lang']:
-    st.session_state['lang'] = new_lang
-    st.rerun()
+if new_lang != st.session_state["lang"]:
+  st.session_state["lang"] = new_lang
+  st.rerun()
 
-st.sidebar.markdown(f"👤 **{user['nombre']}** \n<small style='color:#64748B;'>👑 {user['rol']}</small>", unsafe_allow_html=True)
+st.sidebar.markdown(
+    f"👤 **{user['nombre']}** \n<small style='color:#64748B;'>👑"
+    f" {user['rol']}</small>",
+    unsafe_allow_html=True,
+)
 
 if st.sidebar.button(t["btn_logout"], use_container_width=True):
-    st.session_state['logged_in'] = False
-    st.session_state['user_info'] = None
-    st.rerun()
+  st.session_state["logged_in"] = False
+  st.session_state["user_info"] = None
+  st.rerun()
 
 # ==========================================
 # 0. TABLERO OPERATIVO DIRECTOR
 # ==========================================
 if menu_sel == t["nav_director"]:
-    st.markdown(f"<div class='main-header'>{t['dir_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    costos_df = get_costos_df()
-    
-    if proyectos_df.empty:
-        st.info("No hay obras registradas actualmente para mostrar en la vista ejecutiva.")
-    else:
-        total_proyectos = len(proyectos_df)
-        meta_promedio = proyectos_df['avance_meta'].mean()
-        real_promedio = proyectos_df['avance_real'].mean()
-        
-        presupuesto_global = proyectos_df['presupuesto_total'].sum()
-        costo_global = costos_df['monto'].sum() if not costos_df.empty else 0.0
-        
-        eficiencia_presupuestal = ((presupuesto_global - costo_global) / presupuesto_global * 100) if presupuesto_global > 0 else 100.0
+  st.markdown(
+      f"<div class='main-header'>{t['dir_title']}</div>", unsafe_allow_html=True
+  )
 
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric(t["dir_kpi_total_proj"], f"{total_proyectos}")
-        k2.metric(t["dir_kpi_goal_prog"], f"{meta_promedio:.1f}%")
-        k3.metric(t["dir_kpi_real_prog"], f"{real_promedio:.1f}%", delta=f"{real_promedio - meta_promedio:.1f}%")
-        k4.metric(t["dir_kpi_efficiency"], f"{eficiencia_presupuestal:.1f}%", delta="En Presupuesto" if eficiencia_presupuestal >= 0 else "Sobrecosto", delta_color="normal" if eficiencia_presupuestal >= 0 else "inverse")
+  proyectos_df = get_proyectos_df()
+  costos_df = get_costos_df()
 
-        st.markdown("---")
+  if proyectos_df.empty:
+    st.info(
+        "No hay obras registradas actualmente para mostrar en la vista"
+        " ejecutiva."
+    )
+  else:
+    total_proyectos = len(proyectos_df)
+    meta_promedio = proyectos_df["avance_meta"].mean()
+    real_promedio = proyectos_df["avance_real"].mean()
 
-        col_dir1, col_dir2 = st.columns([1.3, 1])
+    presupuesto_global = proyectos_df["presupuesto_total"].sum()
+    costo_global = costos_df["monto"].sum() if not costos_df.empty else 0.0
 
-        with col_dir1:
-            st.subheader(t["dir_scurve_title"])
-            
-            if not costos_df.empty:
-                costos_df['fecha_dt'] = pd.to_datetime(costos_df['fecha'])
-                costos_df['periodo'] = costos_df['fecha_dt'].dt.to_period('M').astype(str)
-                df_acum = costos_df.groupby('periodo')['monto'].sum().reset_index()
-                df_acum['acumulado'] = df_acum['monto'].cumsum()
-                df_acum['pct_ejecutado'] = (df_acum['acumulado'] / presupuesto_global * 100) if presupuesto_global > 0 else 0
-                
-                fig_curva = go.Figure()
-                fig_curva.add_trace(go.Scatter(
-                    x=df_acum['periodo'], 
-                    y=df_acum['pct_ejecutado'], 
-                    mode='lines+markers', 
-                    name='Gasto Real Acumulado (%)', 
-                    line=dict(color='#0284C7', width=3)
-                ))
-                fig_curva.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)', 
-                    font_color='#0F172A',
-                    yaxis=dict(title="% Presupuesto Ejecutado", range=[0, max(105, df_acum['pct_ejecutado'].max() + 5)], gridcolor='#E2E8F0'),
-                    xaxis=dict(gridcolor='#E2E8F0'),
-                    margin=dict(l=20, r=20, t=30, b=20)
-                )
-                st.plotly_chart(fig_curva, use_container_width=True)
-            else:
-                st.info("Sin suficientes datos históricos de costos para generar la curva acumulada.")
+    eficiencia_presupuestal = (
+        ((presupuesto_global - costo_global) / presupuesto_global * 100)
+        if presupuesto_global > 0
+        else 100.0
+    )
 
-        with col_dir2:
-            st.subheader(t["dir_status_summary"])
-            df_status = proyectos_df.copy()
-            costo_por_obra = costos_df.groupby('proyecto_id')['monto'].sum().reset_index() if not costos_df.empty else pd.DataFrame(columns=['proyecto_id', 'monto'])
-            df_status = df_status.merge(costo_por_obra, left_on='id', right_on='proyecto_id', how='left').fillna({'monto': 0})
-            
-            df_status['Semaforo'] = np.where(df_status['avance_real'] >= df_status['avance_meta'], '🟢 En Tiempo', '🔴 Con Retraso')
-            df_status['Consumido ($)'] = df_status['monto']
-            
-            st.dataframe(
-                df_status[['nombre', 'avance_meta', 'avance_real', 'Semaforo', 'presupuesto_total', 'Consumido ($)']],
-                column_config={
-                    "nombre": "Obra",
-                    "avance_meta": st.column_config.NumberColumn("Meta %", format="%.1f%%"),
-                    "avance_real": st.column_config.NumberColumn("Real %", format="%.1f%%"),
-                    "presupuesto_total": st.column_config.NumberColumn("Presupuesto", format="$%,.2f"),
-                    "Consumido ($)": st.column_config.NumberColumn("Gasto Real", format="$%,.2f"),
-                },
-                use_container_width=True
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric(t["dir_kpi_total_proj"], f"{total_proyectos}")
+    k2.metric(t["dir_kpi_goal_prog"], f"{meta_promedio:.1f}%")
+    k3.metric(
+        t["dir_kpi_real_prog"],
+        f"{real_promedio:.1f}%",
+        delta=f"{real_promedio - meta_promedio:.1f}%",
+    )
+    k4.metric(
+        t["dir_kpi_efficiency"],
+        f"{eficiencia_presupuestal:.1f}%",
+        delta=(
+            "En Presupuesto" if eficiencia_presupuestal >= 0 else "Sobrecosto"
+        ),
+        delta_color="normal" if eficiencia_presupuestal >= 0 else "inverse",
+    )
+
+    st.markdown("---")
+
+    col_dir1, col_dir2 = st.columns([1.3, 1])
+
+    with col_dir1:
+      st.subheader(t["dir_scurve_title"])
+
+      if not costos_df.empty:
+        costos_df["fecha_dt"] = pd.to_datetime(costos_df["fecha"])
+        costos_df["periodo"] = (
+            costos_df["fecha_dt"].dt.to_period("M").astype(str)
+        )
+        df_acum = costos_df.groupby("periodo")["monto"].sum().reset_index()
+        df_acum["acumulado"] = df_acum["monto"].cumsum()
+        df_acum["pct_ejecutado"] = (
+            (df_acum["acumulado"] / presupuesto_global * 100)
+            if presupuesto_global > 0
+            else 0
+        )
+
+        fig_curva = go.Figure()
+        fig_curva.add_trace(
+            go.Scatter(
+                x=df_acum["periodo"],
+                y=df_acum["pct_ejecutado"],
+                mode="lines+markers",
+                name="Gasto Real Acumulado (%)",
+                line=dict(color="#0284C7", width=3),
             )
+        )
+        fig_curva.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#0F172A",
+            yaxis=dict(
+                title="% Presupuesto Ejecutado",
+                range=[0, max(105, df_acum["pct_ejecutado"].max() + 5)],
+                gridcolor="#E2E8F0",
+            ),
+            xaxis=dict(gridcolor="#E2E8F0"),
+            margin=dict(l=20, r=20, t=30, b=20),
+        )
+        st.plotly_chart(fig_curva, use_container_width=True)
+      else:
+        st.info(
+            "Sin suficientes datos históricos de costos para generar la curva"
+            " acumulada."
+        )
 
-        st.subheader(t["dir_alerts_title"])
-        alertas = []
-        for _, row in df_status.iterrows():
-            if row['avance_real'] < row['avance_meta']:
-                desvio = row['avance_meta'] - row['avance_real']
-                alertas.append(f"🚨 **{row['nombre']}**: Retraso en avance físico de **{desvio:.1f}%** respecto a la meta.")
-            if row['Consumido ($)'] > row['presupuesto_total']:
-                exceso = row['Consumido ($)'] - row['presupuesto_total']
-                alertas.append(f"💸 **{row['nombre']}**: Presupuesto excedido por **${exceso:,.2f}**.")
-        
-        if alertas:
-            for al in alertas:
-                st.warning(al)
-        else:
-            st.success("✅ Todos los proyectos avanzan conforme a metas y dentro del presupuesto programado.")
+    with col_dir2:
+      st.subheader(t["dir_status_summary"])
+      df_status = proyectos_df.copy()
+      costo_por_obra = (
+          costos_df.groupby("proyecto_id")["monto"].sum().reset_index()
+          if not costos_df.empty
+          else pd.DataFrame(columns=["proyecto_id", "monto"])
+      )
+      df_status = df_status.merge(
+          costo_por_obra, left_on="id", right_on="proyecto_id", how="left"
+      ).fillna({"monto": 0})
+
+      df_status["Semaforo"] = np.where(
+          df_status["avance_real"] >= df_status["avance_meta"],
+          "🟢 En Tiempo",
+          "🔴 Con Retraso",
+      )
+      df_status["Consumido ($)"] = df_status["monto"]
+
+      st.dataframe(
+          df_status[[
+              "nombre",
+              "avance_meta",
+              "avance_real",
+              "Semaforo",
+              "presupuesto_total",
+              "Consumido ($)",
+          ]],
+          column_config={
+              "nombre": "Obra",
+              "avance_meta": st.column_config.NumberColumn(
+                  "Meta %", format="%.1f%%"
+              ),
+              "avance_real": st.column_config.NumberColumn(
+                  "Real %", format="%.1f%%"
+              ),
+              "presupuesto_total": st.column_config.NumberColumn(
+                  "Presupuesto", format="$%,.2f"
+              ),
+              "Consumido ($)": st.column_config.NumberColumn(
+                  "Gasto Real", format="$%,.2f"
+              ),
+          },
+          use_container_width=True,
+      )
+
+    st.subheader(t["dir_alerts_title"])
+    alertas = []
+    for _, row in df_status.iterrows():
+      if row["avance_real"] < row["avance_meta"]:
+        desvio = row["avance_meta"] - row["avance_real"]
+        alertas.append(
+            f"🚨 **{row['nombre']}**: Retraso en avance físico de"
+            f" **{desvio:.1f}%** respecto a la meta."
+        )
+      if row["Consumido ($)"] > row["presupuesto_total"]:
+        exceso = row["Consumido ($)"] - row["presupuesto_total"]
+        alertas.append(
+            f"💸 **{row['nombre']}**: Presupuesto excedido por"
+            f" **${exceso:,.2f}**."
+        )
+
+    if alertas:
+      for al in alertas:
+        st.warning(al)
+    else:
+      st.success(
+          "✅ Todos los proyectos avanzan conforme a metas y dentro del"
+          " presupuesto programado."
+      )
 
 # ==========================================
 # 1. BALANCE FINANCIERO
 # ==========================================
 elif menu_sel == t["nav_balance"]:
-    st.markdown(f"<div class='main-header'>{t['bal_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    costos_df = get_costos_df()
-    cxp_df = get_cxp_df()
+  st.markdown(
+      f"<div class='main-header'>{t['bal_title']}</div>", unsafe_allow_html=True
+  )
 
-    if proyectos_df.empty:
-        st.info("Sin proyectos registrados aún en la base de datos.")
-    else:
-        presupuesto_total = proyectos_df['presupuesto_total'].sum()
-        costo_total_ejecutado = costos_df['monto'].sum() if not costos_df.empty else 0
-        pagos_pendientes_total = (cxp_df['monto_total'] - cxp_df['monto_pagado']).sum() if not cxp_df.empty else 0
-        balance_disponible = presupuesto_total - costo_total_ejecutado
+  proyectos_df = get_proyectos_df()
+  costos_df = get_costos_df()
+  cxp_df = get_cxp_df()
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(t["metric_budget"], f"${presupuesto_total:,.2f}")
-        c2.metric(t["metric_executed"], f"${costo_total_ejecutado:,.2f}", delta=f"-{(costo_total_ejecutado/presupuesto_total*100) if presupuesto_total>0 else 0:.1f}%", delta_color="inverse")
-        c3.metric(t["metric_pending"], f"${pagos_pendientes_total:,.2f}")
-        c4.metric(t["metric_available"], f"${balance_disponible:,.2f}", delta=f"{(balance_disponible/presupuesto_total*100) if presupuesto_total>0 else 0:.1f}%")
+  if proyectos_df.empty:
+    st.info("Sin proyectos registrados aún en la base de datos.")
+  else:
+    presupuesto_total = proyectos_df["presupuesto_total"].sum()
+    costo_total_ejecutado = (
+        costos_df["monto"].sum() if not costos_df.empty else 0
+    )
+    pagos_pendientes_total = (
+        (cxp_df["monto_total"] - cxp_df["monto_pagado"]).sum()
+        if not cxp_df.empty
+        else 0
+    )
+    balance_disponible = presupuesto_total - costo_total_ejecutado
 
-        st.markdown("---")
-        
-        col_graf1, col_graf2 = st.columns(2)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(t["metric_budget"], f"${presupuesto_total:,.2f}")
+    c2.metric(
+        t["metric_executed"],
+        f"${costo_total_ejecutado:,.2f}",
+        delta=(
+            f"-{(costo_total_ejecutado/presupuesto_total*100) if presupuesto_total>0 else 0:.1f}%"
+        ),
+        delta_color="inverse",
+    )
+    c3.metric(t["metric_pending"], f"${pagos_pendientes_total:,.2f}")
+    c4.metric(
+        t["metric_available"],
+        f"${balance_disponible:,.2f}",
+        delta=(
+            f"{(balance_disponible/presupuesto_total*100) if presupuesto_total>0 else 0:.1f}%"
+        ),
+    )
 
-        with col_graf1:
-            st.subheader(t["chart_cat"])
-            if not costos_df.empty:
-                fig_cat = px.pie(costos_df, names='categoria', values='monto', hole=0.45,
-                                 color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_cat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#0F172A', margin=dict(l=20, r=20, t=30, b=20))
-                st.plotly_chart(fig_cat, use_container_width=True)
-            else:
-                st.info("No hay gastos registrados para graficar.")
+    st.markdown("---")
 
-        with col_graf2:
-            st.subheader(t["chart_comp"])
-            if not costos_df.empty:
-                costo_por_obra = costos_df.groupby('proyecto_id')['monto'].sum().reset_index()
-                df_comp = proyectos_df.merge(costo_por_obra, left_on='id', right_on='proyecto_id', how='left').fillna(0)
-                
-                fig_bar = go.Figure(data=[
-                    go.Bar(name='Presupuesto', x=df_comp['nombre'], y=df_comp['presupuesto_total'], marker_color='#0284C7'),
-                    go.Bar(name='Ejecutado', x=df_comp['nombre'], y=df_comp['monto'], marker_color='#EF4444')
-                ])
-                fig_bar.update_layout(
-                    barmode='group', 
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)', 
-                    font_color='#0F172A',
-                    yaxis=dict(gridcolor='#E2E8F0'),
-                    margin=dict(l=20, r=20, t=30, b=20)
-                )
-                st.plotly_chart(fig_bar, use_container_width=True)
-            else:
-                st.info("Sin datos comparativos de obra.")
+    col_graf1, col_graf2 = st.columns(2)
+
+    with col_graf1:
+      st.subheader(t["chart_cat"])
+      if not costos_df.empty:
+        fig_cat = px.pie(
+            costos_df,
+            names="categoria",
+            values="monto",
+            hole=0.45,
+            color_discrete_sequence=px.colors.qualitative.Pastel,
+        )
+        fig_cat.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#0F172A",
+            margin=dict(l=20, r=20, t=30, b=20),
+        )
+        st.plotly_chart(fig_cat, use_container_width=True)
+      else:
+        st.info("No hay gastos registrados para graficar.")
+
+    with col_graf2:
+      st.subheader(t["chart_comp"])
+      if not costos_df.empty:
+        costo_por_obra = (
+            costos_df.groupby("proyecto_id")["monto"].sum().reset_index()
+        )
+        df_comp = proyectos_df.merge(
+            costo_por_obra, left_on="id", right_on="proyecto_id", how="left"
+        ).fillna(0)
+
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                name="Presupuesto",
+                x=df_comp["nombre"],
+                y=df_comp["presupuesto_total"],
+                marker_color="#0284C7",
+            ),
+            go.Bar(
+                name="Ejecutado",
+                x=df_comp["nombre"],
+                y=df_comp["monto"],
+                marker_color="#EF4444",
+            ),
+        ])
+        fig_bar.update_layout(
+            barmode="group",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#0F172A",
+            yaxis=dict(gridcolor="#E2E8F0"),
+            margin=dict(l=20, r=20, t=30, b=20),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+      else:
+        st.info("Sin datos comparativos de obra.")
 
 # ==========================================
-# 2. OBRAS Y MAPAS CON DIRECCIÓN DETALLADA
+# 2. OBRAS, MAPA, EDICIÓN & AVANCES
 # ==========================================
 elif menu_sel == t["nav_obras"]:
-    st.markdown(f"<div class='main-header'>{t['obras_title']}</div>", unsafe_allow_html=True)
-    
-    tab1, tab2, tab3 = st.tabs([t["tab_map"], t["tab_new_obra"], t["tab_del_obra"]])
+  st.markdown(
+      f"<div class='main-header'>{t['obras_title']}</div>",
+      unsafe_allow_html=True,
+  )
 
-    with tab1:
-        df_obras = get_proyectos_df()
-        if not df_obras.empty:
-            df_mapa = df_obras.dropna(subset=['latitud', 'longitud']).copy()
-            df_mapa = df_mapa[(df_mapa['latitud'] != 0.0) & (df_mapa['longitud'] != 0.0)]
-            
-            if not df_mapa.empty:
-                st.pydeck_chart(pdk.Deck(
-                    map_style='mapbox://styles/mapbox/light-v10',
-                    initial_view_state=pdk.ViewState(
-                        latitude=df_mapa['latitud'].mean(),
-                        longitude=df_mapa['longitud'].mean(),
-                        zoom=11,
-                        pitch=35,
+  tab1, tab2, tab3, tab4 = st.tabs([
+      t["tab_map"],
+      t["tab_new_obra"],
+      t["tab_edit_obra"],
+      t["tab_del_obra"],
+  ])
+
+  with tab1:
+    df_obras = get_proyectos_df()
+    if not df_obras.empty:
+      df_mapa = df_obras.dropna(subset=["latitud", "longitud"]).copy()
+      df_mapa = df_mapa[
+          (df_mapa["latitud"] != 0.0) & (df_mapa["longitud"] != 0.0)
+      ]
+
+      if not df_mapa.empty:
+        st.pydeck_chart(
+            pdk.Deck(
+                map_style="mapbox://styles/mapbox/light-v10",
+                initial_view_state=pdk.ViewState(
+                    latitude=df_mapa["latitud"].mean(),
+                    longitude=df_mapa["longitud"].mean(),
+                    zoom=11,
+                    pitch=35,
+                ),
+                layers=[
+                    pdk.Layer(
+                        "ScatterplotLayer",
+                        data=df_mapa,
+                        get_position="[longitud, latitud]",
+                        get_color="[2, 132, 199, 220]",
+                        get_radius=180,
+                        pickable=True,
+                        auto_highlight=True,
                     ),
-                    layers=[
-                        pdk.Layer(
-                            'ScatterplotLayer',
-                            data=df_mapa,
-                            get_position='[longitud, latitud]',
-                            get_color='[2, 132, 199, 220]',
-                            get_radius=180,
-                            pickable=True,
-                            auto_highlight=True
-                        ),
-                    ],
-                    tooltip={
-                        "html": "<b>🏗️ Obra:</b> {nombre}<br/><b>👤 Cliente:</b> {cliente}<br/><b>📍 Dirección:</b> {calle}, CP {codigo_postal}, {ciudad}, {estado_provincia}<br/><b>💰 Presupuesto:</b> ${presupuesto_total}",
-                        "style": {"backgroundColor": "#0F172A", "color": "white", "fontSize": "13px", "borderRadius": "6px"}
-                    }
-                ))
-            else:
-                st.info("Registra direcciones válidas para mostrar las obras en el mapa interactivo.")
-                
-            st.markdown("---")
-            st.dataframe(
-                df_obras[['codigo', 'nombre', 'cliente', 'calle', 'codigo_postal', 'ciudad', 'estado_provincia', 'presupuesto_total', 'avance_meta', 'avance_real', 'estado']], 
-                column_config={"presupuesto_total": st.column_config.NumberColumn("Presupuesto", format="$%,.2f")},
-                use_container_width=True
+                ],
+                tooltip={
+                    "html": (
+                        "<b>🏗️ Obra:</b> {nombre}<br/><b>👤 Cliente:</b>"
+                        " {cliente}<br/><b>📍 Dirección:</b> {calle}, CP"
+                        " {codigo_postal}, {ciudad}, {estado_provincia}<br/><b>💰"
+                        " Presupuesto:</b> ${presupuesto_total}<br/><b>📊 Avance"
+                        " Real:</b> {avance_real}%"
+                    ),
+                    "style": {
+                        "backgroundColor": "#0F172A",
+                        "color": "white",
+                        "fontSize": "13px",
+                        "borderRadius": "6px",
+                    },
+                },
             )
-        else:
-            st.info("No hay proyectos registrados.")
+        )
+      else:
+        st.info(
+            "Registra direcciones válidas para mostrar las obras en el mapa"
+            " interactivo."
+        )
 
-    with tab2:
-        with st.form("form_nueva_obra"):
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                codigo = st.text_input(t["lbl_code"])
-                nombre = st.text_input(t["lbl_name"])
-                cliente = st.text_input(t["lbl_client"])
-                presupuesto = st.number_input(t["lbl_budget"], min_value=0.0, step=10000.0)
-            
-            with col_b2:
-                calle = st.text_input(t["lbl_calle"])
-                c_cp, c_city, c_st = st.columns(3)
-                with c_cp:
-                    cp = st.text_input(t["lbl_cp"])
-                with c_city:
-                    ciudad = st.text_input(t["lbl_city"])
-                with c_st:
-                    estado_prov = st.text_input(t["lbl_state"])
+      st.markdown("---")
+      st.dataframe(
+          df_obras[[
+              "codigo",
+              "nombre",
+              "cliente",
+              "calle",
+              "codigo_postal",
+              "ciudad",
+              "estado_provincia",
+              "presupuesto_total",
+              "avance_meta",
+              "avance_real",
+              "estado",
+          ]],
+          column_config={
+              "presupuesto_total": st.column_config.NumberColumn(
+                  "Presupuesto", format="$%,.2f"
+              ),
+              "avance_meta": st.column_config.NumberColumn(
+                  "Meta %", format="%.1f%%"
+              ),
+              "avance_real": st.column_config.NumberColumn(
+                  "Real %", format="%.1f%%"
+              ),
+          },
+          use_container_width=True,
+      )
+    else:
+      st.info("No hay proyectos registrados.")
 
-            c_meta, c_real = st.columns(2)
-            with c_meta:
-                avance_meta = st.number_input(t["lbl_target_prog"], min_value=0.0, max_value=100.0, value=0.0, step=5.0)
-            with c_real:
-                avance_real = st.number_input(t["lbl_real_prog"], min_value=0.0, max_value=100.0, value=0.0, step=5.0)
+  with tab2:
+    with st.form("form_nueva_obra"):
+      col_b1, col_b2 = st.columns(2)
+      with col_b1:
+        codigo = st.text_input(t["lbl_code"])
+        nombre = st.text_input(t["lbl_name"])
+        cliente = st.text_input(t["lbl_client"])
+        presupuesto = st.number_input(
+            t["lbl_budget"], min_value=0.0, step=10000.0
+        )
 
-            c_lat, c_lon = st.columns(2)
-            with c_lat:
-                latitud_manual = st.number_input(t["lbl_lat"], format="%.6f", value=0.0)
-            with c_lon:
-                longitud_manual = st.number_input(t["lbl_lon"], format="%.6f", value=0.0)
+      with col_b2:
+        calle = st.text_input(t["lbl_calle"])
+        c_cp, c_city, c_st = st.columns(3)
+        with c_cp:
+          cp = st.text_input(t["lbl_cp"])
+        with c_city:
+          ciudad = st.text_input(t["lbl_city"])
+        with c_st:
+          estado_prov = st.text_input(t["lbl_state"])
 
-            if st.form_submit_button(t["btn_save_obra"]):
-                if codigo and nombre and cliente:
-                    lat_final, lon_final = latitud_manual, longitud_manual
-                    
-                    if lat_final == 0.0 and lon_final == 0.0:
-                        lat_geo, lon_geo = geocode_address(calle, cp, ciudad, estado_prov)
-                        if lat_geo and lon_geo:
-                            lat_final, lon_final = lat_geo, lon_geo
-                            st.info(f"📍 Coordenadas encontradas automáticamente: Lat {lat_final}, Lon {lon_final}")
-                        else:
-                            st.warning("⚠️ No se pudieron obtener coordenadas GPS automáticamente con esa dirección, la obra se guardará de todos modos.")
+      c_meta, c_real = st.columns(2)
+      with c_meta:
+        avance_meta = st.number_input(
+            t["lbl_target_prog"],
+            min_value=0.0,
+            max_value=100.0,
+            value=0.0,
+            step=5.0,
+        )
+      with c_real:
+        avance_real = st.number_input(
+            t["lbl_real_prog"],
+            min_value=0.0,
+            max_value=100.0,
+            value=0.0,
+            step=5.0,
+        )
 
-                    try:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO proyectos (codigo, nombre, cliente, calle, codigo_postal, ciudad, estado_provincia, presupuesto_total, avance_meta, avance_real, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                (codigo, nombre, cliente, calle, cp, ciudad, estado_prov, presupuesto, avance_meta, avance_real, lat_final, lon_final)
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_obra_success"])
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+      c_lat, c_lon = st.columns(2)
+      with c_lat:
+        latitud_manual = st.number_input(
+            t["lbl_lat"], format="%.6f", value=0.0
+        )
+      with c_lon:
+        longitud_manual = st.number_input(
+            t["lbl_lon"], format="%.6f", value=0.0
+        )
 
-    with tab3:
-        st.subheader("🗑️ Eliminar Obra")
-        df_obras_del = get_proyectos_df()
-        
-        if not df_obras_del.empty:
-            proyectos_dict_del = dict(zip(df_obras_del['nombre'] + " (" + df_obras_del['cliente'] + ")", df_obras_del['id']))
-            obra_sel_del = st.selectbox("Seleccionar Proyecto a Borrar", list(proyectos_dict_del.keys()))
-            id_borrar = proyectos_dict_del[obra_sel_del]
-            
-            st.error(f"⚠️ **ATENCIÓN**: Esta acción eliminará permanentemente la obra seleccionada y **todos sus registros asociados** (Trabajadores, Costos, CxP y Requisiciones).")
-            
-            if st.button("❌ Confirmar y Borrar Obra", type="primary"):
-                try:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("UPDATE trabajadores SET proyecto_id = NULL WHERE proyecto_id = ?", (id_borrar,))
-                        c.execute("DELETE FROM costos WHERE proyecto_id = ?", (id_borrar,))
-                        c.execute("DELETE FROM cuentas_por_pagar WHERE proyecto_id = ?", (id_borrar,))
-                        c.execute("DELETE FROM requisiciones WHERE proyecto_id = ?", (id_borrar,))
-                        c.execute("DELETE FROM proyectos WHERE id = ?", (id_borrar,))
-                        conn.commit()
-                    clear_data_cache()
-                    st.success("La obra se eliminó correctamente.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al eliminar la obra: {e}")
-        else:
-            st.info("No hay proyectos registrados para eliminar.")
+      if st.form_submit_button(t["btn_save_obra"]):
+        if codigo and nombre and cliente:
+          lat_final, lon_final = latitud_manual, longitud_manual
+
+          if lat_final == 0.0 and lon_final == 0.0:
+            lat_geo, lon_geo = geocode_address(calle, cp, ciudad, estado_prov)
+            if lat_geo and lon_geo:
+              lat_final, lon_final = lat_geo, lon_geo
+              st.info(
+                  "📍 Coordenadas encontradas automáticamente: Lat"
+                  f" {lat_final}, Lon {lon_final}"
+              )
+            else:
+              st.warning(
+                  "⚠️ No se pudieron obtener coordenadas GPS automáticamente"
+                  " con esa dirección, la obra se guardará de todos modos."
+              )
+
+          try:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO proyectos (codigo, nombre, cliente, calle,"
+                  " codigo_postal, ciudad, estado_provincia, presupuesto_total,"
+                  " avance_meta, avance_real, latitud, longitud) VALUES (?, ?,"
+                  " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  (
+                      codigo,
+                      nombre,
+                      cliente,
+                      calle,
+                      cp,
+                      ciudad,
+                      estado_prov,
+                      presupuesto,
+                      avance_meta,
+                      avance_real,
+                      lat_final,
+                      lon_final,
+                  ),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_obra_success"])
+            st.rerun()
+          except Exception as e:
+            st.error(f"Error: {e}")
+
+  with tab3:
+    st.subheader("✏️ Editar Datos de Obra & Actualizar Avance Físico")
+    df_obras_edit = get_proyectos_df()
+
+    if not df_obras_edit.empty:
+      proyectos_dict_edit = dict(
+          zip(
+              df_obras_edit["nombre"] + " (" + df_obras_edit["cliente"] + ")",
+              df_obras_edit["id"],
+          )
+      )
+      obra_sel_edit = st.selectbox(
+          "Seleccionar Proyecto a Editar", list(proyectos_dict_edit.keys())
+      )
+      id_edit = proyectos_dict_edit[obra_sel_edit]
+      row_edit = df_obras_edit[df_obras_edit["id"] == id_edit].iloc[0]
+
+      with st.form("form_editar_obra"):
+        c_e1, c_e2 = st.columns(2)
+        with c_e1:
+          e_nombre = st.text_input(
+              "Nombre de la Obra", value=str(row_edit["nombre"])
+          )
+          e_cliente = st.text_input("Cliente", value=str(row_edit["cliente"]))
+          e_presupuesto = st.number_input(
+              "Presupuesto Contratado ($)",
+              value=float(row_edit["presupuesto_total"]),
+              step=10000.0,
+          )
+          e_estado = st.selectbox(
+              "Estatus de Obra",
+              ["En Proceso", "Pausado", "Concluido", "Cancelado"],
+              index=[
+                  "En Proceso",
+                  "Pausado",
+                  "Concluido",
+                  "Cancelado",
+              ].index(row_edit["estado"])
+              if row_edit["estado"]
+              in ["En Proceso", "Pausado", "Concluido", "Cancelado"]
+              else 0,
+          )
+
+        with c_e2:
+          e_calle = st.text_input("Calle y Número", value=str(row_edit["calle"]))
+          e_cp = st.text_input("Código Postal", value=str(row_edit["codigo_postal"]))
+          e_ciudad = st.text_input("Ciudad", value=str(row_edit["ciudad"]))
+          e_estado_prov = st.text_input(
+              "Estado", value=str(row_edit["estado_provincia"])
+          )
+
+        st.markdown("---")
+        st.markdown("### 📊 Actualizar Avance Físico (%)")
+        c_av1, c_av2 = st.columns(2)
+        with c_av1:
+          e_avance_meta = st.number_input(
+              "Meta Avance Físico (%)",
+              min_value=0.0,
+              max_value=100.0,
+              value=float(row_edit["avance_meta"]),
+              step=1.0,
+          )
+        with c_av2:
+          e_avance_real = st.number_input(
+              "Avance Físico Real Actual (%)",
+              min_value=0.0,
+              max_value=100.0,
+              value=float(row_edit["avance_real"]),
+              step=1.0,
+          )
+
+        if st.form_submit_button("💾 Guardar Cambios"):
+          # Recalcular geocodificación si cambió la dirección
+          lat_edit, lon_edit = float(row_edit["latitud"]), float(
+              row_edit["longitud"]
+          )
+          if (
+              e_calle != row_edit["calle"]
+              or e_ciudad != row_edit["ciudad"]
+              or e_estado_prov != row_edit["estado_provincia"]
+          ):
+            new_lat, new_lon = geocode_address(
+                e_calle, e_cp, e_ciudad, e_estado_prov
+            )
+            if new_lat and new_lon:
+              lat_edit, lon_edit = new_lat, new_lon
+
+          with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute(
+                "UPDATE proyectos SET nombre = ?, cliente = ?, calle = ?,"
+                " codigo_postal = ?, ciudad = ?, estado_provincia = ?,"
+                " presupuesto_total = ?, avance_meta = ?, avance_real = ?,"
+                " estado = ?, latitud = ?, longitud = ? WHERE id = ?",
+                (
+                    e_nombre,
+                    e_cliente,
+                    e_calle,
+                    e_cp,
+                    e_ciudad,
+                    e_estado_prov,
+                    e_presupuesto,
+                    e_avance_meta,
+                    e_avance_real,
+                    e_estado,
+                    lat_edit,
+                    lon_edit,
+                    id_edit,
+                ),
+            )
+            conn.commit()
+          clear_data_cache()
+          st.success("✅ ¡Obra y avances actualizados correctamente!")
+          st.rerun()
+    else:
+      st.info("No hay proyectos registrados para editar.")
+
+  with tab4:
+    st.subheader("🗑️ Eliminar Obra")
+    df_obras_del = get_proyectos_df()
+
+    if not df_obras_del.empty:
+      proyectos_dict_del = dict(
+          zip(
+              df_obras_del["nombre"] + " (" + df_obras_del["cliente"] + ")",
+              df_obras_del["id"],
+          )
+      )
+      obra_sel_del = st.selectbox(
+          "Seleccionar Proyecto a Borrar", list(proyectos_dict_del.keys())
+      )
+      id_borrar = proyectos_dict_del[obra_sel_del]
+
+      st.error(
+          "⚠️ **ATENCIÓN**: Esta acción eliminará permanentemente la obra"
+          " seleccionada y **todos sus registros asociados** (Trabajadores,"
+          " Costos, CxP y Requisiciones)."
+      )
+
+      if st.button("❌ Confirmar y Borrar Obra", type="primary"):
+        try:
+          with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute(
+                "UPDATE trabajadores SET proyecto_id = NULL WHERE proyecto_id ="
+                " ?",
+                (id_borrar,),
+            )
+            c.execute("DELETE FROM costos WHERE proyecto_id = ?", (id_borrar,))
+            c.execute(
+                "DELETE FROM cuentas_por_pagar WHERE proyecto_id = ?",
+                (id_borrar,),
+            )
+            c.execute(
+                "DELETE FROM requisiciones WHERE proyecto_id = ?", (id_borrar,)
+            )
+            c.execute("DELETE FROM proyectos WHERE id = ?", (id_borrar,))
+            conn.commit()
+          clear_data_cache()
+          st.success("La obra se eliminó correctamente.")
+          st.rerun()
+        except Exception as e:
+          st.error(f"Error al eliminar la obra: {e}")
+    else:
+      st.info("No hay proyectos registrados para eliminar.")
 
 # ==========================================
 # 3. TRABAJADORES & PERSONAL POR OBRA
 # ==========================================
 elif menu_sel == t["nav_workers"]:
-    st.markdown(f"<div class='main-header'>{t['workers_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id'])) if not proyectos_df.empty else {}
-    
-    tab1, tab2 = st.tabs([t["tab_workers_list"], t["tab_new_worker"]])
+  st.markdown(
+      f"<div class='main-header'>{t['workers_title']}</div>",
+      unsafe_allow_html=True,
+  )
 
-    with tab1:
-        trabajadores_df = get_trabajadores_df()
-        
-        if not trabajadores_df.empty:
-            col_f1, col_f2 = st.columns([1, 1.5])
-            with col_f1:
-                filtro_obra = st.selectbox("Filtrar por Obra", ["Todas las Obras"] + list(proyectos_dict.keys()))
-            
-            df_mostrar = trabajadores_df.copy()
-            if filtro_obra != "Todas las Obras":
-                df_mostrar = df_mostrar[df_mostrar['proyecto'] == filtro_obra]
-                
-            st.dataframe(
-                df_mostrar[['id', 'nombre_completo', 'puesto', 'telefono', 'proyecto', 'estatus', 'fecha_registro']],
-                column_config={
-                    "id": "ID",
-                    "nombre_completo": "Trabajador",
-                    "puesto": "Puesto / Especialidad",
-                    "telefono": "Teléfono",
-                    "proyecto": "Obra Asignada",
-                    "estatus": "Estatus"
-                },
-                use_container_width=True
+  proyectos_df = get_proyectos_df()
+  proyectos_dict = (
+      dict(zip(proyectos_df["nombre"], proyectos_df["id"]))
+      if not proyectos_df.empty
+      else {}
+  )
+
+  tab1, tab2 = st.tabs([t["tab_workers_list"], t["tab_new_worker"]])
+
+  with tab1:
+    trabajadores_df = get_trabajadores_df()
+
+    if not trabajadores_df.empty:
+      col_f1, col_f2 = st.columns([1, 1.5])
+      with col_f1:
+        filtro_obra = st.selectbox(
+            "Filtrar por Obra",
+            ["Todas las Obras"] + list(proyectos_dict.keys()),
+        )
+
+      df_mostrar = trabajadores_df.copy()
+      if filtro_obra != "Todas las Obras":
+        df_mostrar = df_mostrar[df_mostrar["proyecto"] == filtro_obra]
+
+      st.dataframe(
+          df_mostrar[[
+              "id",
+              "nombre_completo",
+              "puesto",
+              "telefono",
+              "proyecto",
+              "estatus",
+              "fecha_registro",
+          ]],
+          column_config={
+              "id": "ID",
+              "nombre_completo": "Trabajador",
+              "puesto": "Puesto / Especialidad",
+              "telefono": "Teléfono",
+              "proyecto": "Obra Asignada",
+              "estatus": "Estatus",
+          },
+          use_container_width=True,
+      )
+
+      st.markdown("---")
+      st.subheader("🔄 Reasignar Trabajador a Otra Obra")
+
+      with st.form("form_reasignar_trabajador"):
+        trabajador_dict = dict(
+            zip(
+                trabajadores_df["nombre_completo"]
+                + " ("
+                + trabajadores_df["puesto"]
+                + ")",
+                trabajadores_df["id"],
             )
-            
-            st.markdown("---")
-            st.subheader("🔄 Reasignar Trabajador a Otra Obra")
-            
-            with st.form("form_reasignar_trabajador"):
-                trabajador_dict = dict(zip(trabajadores_df['nombre_completo'] + " (" + trabajadores_df['puesto'] + ")", trabajadores_df['id']))
-                trabajador_sel = st.selectbox("Seleccionar Trabajador", list(trabajador_dict.keys()))
-                nueva_obra_sel = st.selectbox("Nueva Obra Asignada", ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()))
-                
-                if st.form_submit_button("Guardar Cambios de Asignación"):
-                    trab_id = trabajador_dict[trabajador_sel]
-                    nueva_obra_id = proyectos_dict[nueva_obra_sel] if nueva_obra_sel != "Sin Asignar / Oficina" else None
-                    
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("UPDATE trabajadores SET proyecto_id = ? WHERE id = ?", (nueva_obra_id, trab_id))
-                        conn.commit()
-                    clear_data_cache()
-                    st.success("Reasignación completada correctamente.")
-                    st.rerun()
-        else:
-            st.info("No hay trabajadores registrados en la base de datos.")
+        )
+        trabajador_sel = st.selectbox(
+            "Seleccionar Trabajador", list(trabajador_dict.keys())
+        )
+        nueva_obra_sel = st.selectbox(
+            "Nueva Obra Asignada",
+            ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()),
+        )
 
-    with tab2:
-        with st.form("form_nuevo_trabajador"):
-            w_nombre = st.text_input(t["lbl_worker_name"])
-            w_puesto = st.text_input(t["lbl_position"])
-            w_telefono = st.text_input(t["lbl_phone"])
-            
-            opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
-            w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
-            
-            if st.form_submit_button(t["btn_save_worker"]):
-                if w_nombre and w_puesto:
-                    obra_id_val = proyectos_dict[w_obra] if w_obra != "Sin Asignar / Oficina" else None
-                    try:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id) VALUES (?, ?, ?, ?)",
-                                (w_nombre, w_puesto, w_telefono, obra_id_val)
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_worker_success"])
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar trabajador: {e}")
+        if st.form_submit_button("Guardar Cambios de Asignación"):
+          trab_id = trabajador_dict[trabajador_sel]
+          nueva_obra_id = (
+              proyectos_dict[nueva_obra_sel]
+              if nueva_obra_sel != "Sin Asignar / Oficina"
+              else None
+          )
+
+          with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute(
+                "UPDATE trabajadores SET proyecto_id = ? WHERE id = ?",
+                (nueva_obra_id, trab_id),
+            )
+            conn.commit()
+          clear_data_cache()
+          st.success("Reasignación completada correctamente.")
+          st.rerun()
+    else:
+      st.info("No hay trabajadores registrados en la base de datos.")
+
+  with tab2:
+    with st.form("form_nuevo_trabajador"):
+      w_nombre = st.text_input(t["lbl_worker_name"])
+      w_puesto = st.text_input(t["lbl_position"])
+      w_telefono = st.text_input(t["lbl_phone"])
+
+      opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
+      w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
+
+      if st.form_submit_button(t["btn_save_worker"]):
+        if w_nombre and w_puesto:
+          obra_id_val = (
+              proyectos_dict[w_obra]
+              if w_obra != "Sin Asignar / Oficina"
+              else None
+          )
+          try:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO trabajadores (nombre_completo, puesto, telefono,"
+                  " proyecto_id) VALUES (?, ?, ?, ?)",
+                  (w_nombre, w_puesto, w_telefono, obra_id_val),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_worker_success"])
+            st.rerun()
+          except Exception as e:
+            st.error(f"Error al guardar trabajador: {e}")
 
 # ==========================================
 # 4. COSTOS
 # ==========================================
 elif menu_sel == t["nav_costos"]:
-    st.markdown(f"<div class='main-header'>{t['costos_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    if proyectos_df.empty:
-        st.warning("Registra una obra o proyecto primero.")
-    else:
-        proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id']))
-        col_sel, col_form = st.columns([1, 1.2])
+  st.markdown(
+      f"<div class='main-header'>{t['costos_title']}</div>",
+      unsafe_allow_html=True,
+  )
 
-        with col_sel:
-            obra_sel = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
-            obra_id = proyectos_dict[obra_sel]
+  proyectos_df = get_proyectos_df()
+  if proyectos_df.empty:
+    st.warning("Registra una obra o proyecto primero.")
+  else:
+    proyectos_dict = dict(zip(proyectos_df["nombre"], proyectos_df["id"]))
+    col_sel, col_form = st.columns([1, 1.2])
 
-            with st.form("form_costo"):
-                categoria = st.selectbox(t["lbl_cat"], [
-                    "Materiales / Materials",
-                    "Mano de Obra / Labor",
-                    "Equipos / Equipment",
-                    "Subcontratos / Subcontracts",
-                    "Gastos Indirectos / Indirects"
-                ])
-                concepto = st.text_input(t["lbl_concept"])
-                monto = st.number_input(t["lbl_amount"], min_value=0.01, step=500.0)
-                fecha_costo = st.date_input(t["lbl_date"], datetime.now())
-                observaciones = st.text_area(t["lbl_obs"])
+    with col_sel:
+      obra_sel = st.selectbox(
+          t["lbl_select_obra"], list(proyectos_dict.keys())
+      )
+      obra_id = proyectos_dict[obra_sel]
 
-                if st.form_submit_button(t["btn_save_costo"]):
-                    if concepto and monto > 0:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO costos (proyecto_id, categoria, concepto, monto, fecha, registrado_por, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                (obra_id, categoria, concepto, monto, fecha_costo, user['nombre'], observaciones)
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_costo_success"])
-                        st.rerun()
+      with st.form("form_costo"):
+        categoria = st.selectbox(
+            t["lbl_cat"],
+            [
+                "Materiales / Materials",
+                "Mano de Obra / Labor",
+                "Equipos / Equipment",
+                "Subcontratos / Subcontracts",
+                "Gastos Indirectos / Indirects",
+            ],
+        )
+        concepto = st.text_input(t["lbl_concept"])
+        monto = st.number_input(t["lbl_amount"], min_value=0.01, step=500.0)
+        fecha_costo = st.date_input(t["lbl_date"], datetime.now())
+        observaciones = st.text_area(t["lbl_obs"])
 
-        with col_form:
-            st.subheader(t["costos_history"])
-            costos_df = get_costos_df(obra_id)
-            if not costos_df.empty:
-                st.dataframe(
-                    costos_df[['categoria', 'concepto', 'monto', 'fecha', 'registrado_por']],
-                    column_config={"monto": st.column_config.NumberColumn("Monto", format="$%,.2f")},
-                    use_container_width=True
-                )
-            else:
-                st.info("Sin registros de costos para esta obra.")
+        if st.form_submit_button(t["btn_save_costo"]):
+          if concepto and monto > 0:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO costos (proyecto_id, categoria, concepto, monto,"
+                  " fecha, registrado_por, observaciones) VALUES (?, ?, ?, ?,"
+                  " ?, ?, ?)",
+                  (
+                      obra_id,
+                      categoria,
+                      concepto,
+                      monto,
+                      fecha_costo,
+                      user["nombre"],
+                      observaciones,
+                  ),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_costo_success"])
+            st.rerun()
+
+    with col_form:
+      st.subheader(t["costos_history"])
+      costos_df = get_costos_df(obra_id)
+      if not costos_df.empty:
+        st.dataframe(
+            costos_df[
+                ["id", "categoria", "concepto", "monto", "fecha", "registrado_por"]
+            ],
+            column_config={
+                "monto": st.column_config.NumberColumn("Monto", format="$%,.2f")
+            },
+            use_container_width=True,
+        )
+
+        st.markdown("---")
+        with st.expander("🗑️ Eliminar Registro de Costo Erróneo"):
+          costo_del_id = st.selectbox(
+              "Selecciona el ID del costo a eliminar", costos_df["id"].tolist()
+          )
+          if st.button("Eliminar Costo"):
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute("DELETE FROM costos WHERE id = ?", (costo_del_id,))
+              conn.commit()
+            clear_data_cache()
+            st.success("Costo eliminado.")
+            st.rerun()
+      else:
+        st.info("Sin registros de costos para esta obra.")
 
 # ==========================================
 # 5. CUENTAS POR PAGAR (CxP)
 # ==========================================
 elif menu_sel == t["nav_cxp"]:
-    st.markdown(f"<div class='main-header'>{t['cxp_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    if proyectos_df.empty:
-        st.warning("Registra una obra o proyecto primero.")
-    else:
-        proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id']))
-        tab1, tab2 = st.tabs([t["tab_active_cxp"], t["tab_new_cxp"]])
+  st.markdown(
+      f"<div class='main-header'>{t['cxp_title']}</div>", unsafe_allow_html=True
+  )
 
-        with tab1:
-            cxp_df = get_cxp_df()
-            if not cxp_df.empty:
-                cxp_df['saldo_pendiente'] = cxp_df['monto_total'] - cxp_df['monto_pagado']
-                st.dataframe(
-                    cxp_df[['id', 'proyecto', 'proveedor', 'concepto', 'monto_total', 'monto_pagado', 'saldo_pendiente', 'estatus', 'fecha_vencimiento']],
-                    column_config={
-                        "monto_total": st.column_config.NumberColumn("Total", format="$%,.2f"),
-                        "monto_pagado": st.column_config.NumberColumn("Pagado", format="$%,.2f"),
-                        "saldo_pendiente": st.column_config.NumberColumn("Saldo", format="$%,.2f")
-                    },
-                    use_container_width=True
+  proyectos_df = get_proyectos_df()
+  if proyectos_df.empty:
+    st.warning("Registra una obra o proyecto primero.")
+  else:
+    proyectos_dict = dict(zip(proyectos_df["nombre"], proyectos_df["id"]))
+    tab1, tab2 = st.tabs([t["tab_active_cxp"], t["tab_new_cxp"]])
+
+    with tab1:
+      cxp_df = get_cxp_df()
+      if not cxp_df.empty:
+        cxp_df["saldo_pendiente"] = (
+            cxp_df["monto_total"] - cxp_df["monto_pagado"]
+        )
+        st.dataframe(
+            cxp_df[[
+                "id",
+                "proyecto",
+                "proveedor",
+                "concepto",
+                "monto_total",
+                "monto_pagado",
+                "saldo_pendiente",
+                "estatus",
+                "fecha_vencimiento",
+            ]],
+            column_config={
+                "monto_total": st.column_config.NumberColumn(
+                    "Total", format="$%,.2f"
+                ),
+                "monto_pagado": st.column_config.NumberColumn(
+                    "Pagado", format="$%,.2f"
+                ),
+                "saldo_pendiente": st.column_config.NumberColumn(
+                    "Saldo", format="$%,.2f"
+                ),
+            },
+            use_container_width=True,
+        )
+
+        st.markdown("---")
+        st.subheader(t["btn_pay"])
+
+        pendientes = cxp_df[cxp_df["saldo_pendiente"] > 0]
+        if not pendientes.empty:
+          with st.form("form_pago_cxp"):
+            cxp_id_sel = st.selectbox(
+                t["lbl_cxp_id"], pendientes["id"].tolist()
+            )
+            monto_abono = st.number_input(
+                t["lbl_pay_amount"], min_value=0.01, step=1000.0
+            )
+
+            if st.form_submit_button(t["btn_pay"]):
+              row = pendientes[pendientes["id"] == cxp_id_sel].iloc[0]
+              nuevo_pagado = row["monto_pagado"] + monto_abono
+              nuevo_estatus = (
+                  "Pagado" if nuevo_pagado >= row["monto_total"] else "Parcial"
+              )
+
+              with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute(
+                    "UPDATE cuentas_por_pagar SET monto_pagado = ?, estatus = ?"
+                    " WHERE id = ?",
+                    (nuevo_pagado, nuevo_estatus, cxp_id_sel),
                 )
+                c.execute(
+                    "INSERT INTO costos (proyecto_id, categoria, concepto,"
+                    " monto, fecha, registrado_por, observaciones) VALUES (?,"
+                    " ?, ?, ?, CURRENT_DATE, ?, ?)",
+                    (
+                        row["proyecto_id"],
+                        "Subcontratos / Subcontracts",
+                        (
+                            f"Pago CxP #{cxp_id_sel}: {row['proveedor']} -"
+                            f" {row['concepto']}"
+                        ),
+                        monto_abono,
+                        user["nombre"],
+                        f"Abono CxP Ref {cxp_id_sel}",
+                    ),
+                )
+                conn.commit()
+              clear_data_cache()
+              st.success(t["msg_pay_success"])
+              st.rerun()
+        else:
+          st.success("🎉 ¡No hay cuentas pendientes por pagar!")
+      else:
+        st.info("No hay cuentas por pagar registradas.")
 
-                st.markdown("---")
-                st.subheader(t["btn_pay"])
-                
-                pendientes = cxp_df[cxp_df['saldo_pendiente'] > 0]
-                if not pendientes.empty:
-                    with st.form("form_pago_cxp"):
-                        cxp_id_sel = st.selectbox(t["lbl_cxp_id"], pendientes['id'].tolist())
-                        monto_abono = st.number_input(t["lbl_pay_amount"], min_value=0.01, step=1000.0)
+    with tab2:
+      with st.form("form_nueva_cxp"):
+        obra_cxp = st.selectbox(
+            t["lbl_select_obra"], list(proyectos_dict.keys())
+        )
+        proveedor = st.text_input(t["lbl_provider"])
+        concepto_cxp = st.text_input(t["lbl_concept"])
+        monto_total = st.number_input(
+            t["lbl_amount"], min_value=0.01, step=1000.0
+        )
+        fecha_venc = st.date_input(t["lbl_due"], datetime.now())
 
-                        if st.form_submit_button(t["btn_pay"]):
-                            row = pendientes[pendientes['id'] == cxp_id_sel].iloc[0]
-                            nuevo_pagado = row['monto_pagado'] + monto_abono
-                            nuevo_estatus = "Pagado" if nuevo_pagado >= row['monto_total'] else "Parcial"
-
-                            with sqlite3.connect(DB_PATH) as conn:
-                                c = conn.cursor()
-                                c.execute(
-                                    "UPDATE cuentas_por_pagar SET monto_pagado = ?, estatus = ? WHERE id = ?",
-                                    (nuevo_pagado, nuevo_estatus, cxp_id_sel)
-                                )
-                                c.execute(
-                                    "INSERT INTO costos (proyecto_id, categoria, concepto, monto, fecha, registrado_por, observaciones) VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)",
-                                    (row['proyecto_id'], "Subcontratos / Subcontracts", f"Pago CxP #{cxp_id_sel}: {row['proveedor']} - {row['concepto']}", monto_abono, user['nombre'], f"Abono CxP Ref {cxp_id_sel}")
-                                )
-                                conn.commit()
-                            clear_data_cache()
-                            st.success(t["msg_pay_success"])
-                            st.rerun()
-                else:
-                    st.success("🎉 ¡No hay cuentas pendientes por pagar!")
-            else:
-                st.info("No hay cuentas por pagar registradas.")
-
-        with tab2:
-            with st.form("form_nueva_cxp"):
-                obra_cxp = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
-                proveedor = st.text_input(t["lbl_provider"])
-                concepto_cxp = st.text_input(t["lbl_concept"])
-                monto_total = st.number_input(t["lbl_amount"], min_value=0.01, step=1000.0)
-                fecha_venc = st.date_input(t["lbl_due"], datetime.now())
-
-                if st.form_submit_button(t["btn_save_cxp"]):
-                    if proveedor and concepto_cxp and monto_total > 0:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO cuentas_por_pagar (proyecto_id, proveedor, concepto, monto_total, fecha_vencimiento, registrado_por) VALUES (?, ?, ?, ?, ?, ?)",
-                                (proyectos_dict[obra_cxp], proveedor, concepto_cxp, monto_total, fecha_venc, user['nombre'])
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_cxp_success"])
-                        st.rerun()
+        if st.form_submit_button(t["btn_save_cxp"]):
+          if proveedor and concepto_cxp and monto_total > 0:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO cuentas_por_pagar (proyecto_id, proveedor,"
+                  " concepto, monto_total, fecha_vencimiento, registrado_por)"
+                  " VALUES (?, ?, ?, ?, ?, ?)",
+                  (
+                      proyectos_dict[obra_cxp],
+                      proveedor,
+                      concepto_cxp,
+                      monto_total,
+                      fecha_venc,
+                      user["nombre"],
+                  ),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_cxp_success"])
+            st.rerun()
 
 # ==========================================
 # 6. REQUISICIONES DE CAMPO
 # ==========================================
 elif menu_sel == t["nav_req"]:
-    st.markdown(f"<div class='main-header'>{t['req_title']}</div>", unsafe_allow_html=True)
-    
-    proyectos_df = get_proyectos_df()
-    if proyectos_df.empty:
-        st.warning("Registra una obra o proyecto primero.")
-    else:
-        proyectos_dict = dict(zip(proyectos_df['nombre'], proyectos_df['id']))
-        tab1, tab2 = st.tabs([t["tab_active_req"], t["tab_new_req"]])
+  st.markdown(
+      f"<div class='main-header'>{t['req_title']}</div>", unsafe_allow_html=True
+  )
 
-        with tab1:
-            req_df = get_requisiciones_df()
-            if not req_df.empty:
-                st.dataframe(
-                    req_df[['id', 'proyecto', 'insumo', 'cantidad', 'unidad', 'prioridad', 'solicitado_por', 'estatus', 'fecha']],
-                    use_container_width=True
-                )
-            else:
-                st.info("No hay requisiciones generadas.")
+  proyectos_df = get_proyectos_df()
+  if proyectos_df.empty:
+    st.warning("Registra una obra o proyecto primero.")
+  else:
+    proyectos_dict = dict(zip(proyectos_df["nombre"], proyectos_df["id"]))
+    tab1, tab2 = st.tabs([t["tab_active_req"], t["tab_new_req"]])
 
-        with tab2:
-            with st.form("form_nueva_req"):
-                obra_req = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
-                insumo = st.text_input(t["lbl_item"])
-                c_cant, c_uni, c_prio = st.columns(3)
-                with c_cant:
-                    cantidad = st.number_input(t["lbl_qty"], min_value=0.01, value=1.0)
-                with c_uni:
-                    unidad = st.text_input(t["lbl_unit"], value="Pza / M2 / Ton")
-                with c_prio:
-                    prioridad = st.selectbox(t["lbl_priority"], ["Baja", "Normal", "Alta", "Urgente"])
+    with tab1:
+      req_df = get_requisiciones_df()
+      if not req_df.empty:
+        st.dataframe(
+            req_df[[
+                "id",
+                "proyecto",
+                "insumo",
+                "cantidad",
+                "unidad",
+                "prioridad",
+                "solicitado_por",
+                "estatus",
+                "fecha",
+            ]],
+            use_container_width=True,
+        )
 
-                if st.form_submit_button(t["btn_send_req"]):
-                    if insumo and cantidad > 0:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO requisiciones (proyecto_id, insumo, cantidad, unidad, prioridad, solicitado_por) VALUES (?, ?, ?, ?, ?, ?)",
-                                (proyectos_dict[obra_req], insumo, cantidad, unidad, prioridad, user['nombre'])
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_req_success"])
-                        st.rerun()
+        st.markdown("---")
+        st.subheader("🔄 Cambiar Estatus de Requisición")
+        with st.form("form_estatus_req"):
+          req_id_sel = st.selectbox(
+              "ID Requisición", req_df["id"].tolist()
+          )
+          nuevo_estatus_req = st.selectbox(
+              "Nuevo Estatus",
+              ["Pendiente", "Aprobado", "Entregado", "Rechazado"],
+          )
+
+          if st.form_submit_button("Actualizar Estatus"):
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "UPDATE requisiciones SET estatus = ? WHERE id = ?",
+                  (nuevo_estatus_req, req_id_sel),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success("Estatus de la requisición actualizado.")
+            st.rerun()
+      else:
+        st.info("No hay requisiciones generadas.")
+
+    with tab2:
+      with st.form("form_nueva_req"):
+        obra_req = st.selectbox(
+            t["lbl_select_obra"], list(proyectos_dict.keys())
+        )
+        insumo = st.text_input(t["lbl_item"])
+        c_cant, c_uni, c_prio = st.columns(3)
+        with c_cant:
+          cantidad = st.number_input(t["lbl_qty"], min_value=0.01, value=1.0)
+        with c_uni:
+          unidad = st.text_input(t["lbl_unit"], value="Pza / M2 / Ton")
+        with c_prio:
+          prioridad = st.selectbox(
+              t["lbl_priority"], ["Baja", "Normal", "Alta", "Urgente"]
+          )
+
+        if st.form_submit_button(t["btn_send_req"]):
+          if insumo and cantidad > 0:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO requisiciones (proyecto_id, insumo, cantidad,"
+                  " unidad, prioridad, solicitado_por, estatus) VALUES (?, ?,"
+                  " ?, ?, ?, ?, ?)",
+                  (
+                      proyectos_dict[obra_req],
+                      insumo,
+                      cantidad,
+                      unidad,
+                      prioridad,
+                      user["nombre"],
+                      "Pendiente",
+                  ),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_req_success"])
+            st.rerun()
 
 # ==========================================
 # 7. USUARIOS MAESTROS
 # ==========================================
 elif menu_sel == t["nav_users"]:
-    st.markdown(f"<div class='main-header'>{t['users_title']}</div>", unsafe_allow_html=True)
-    
-    col_user1, col_user2 = st.columns([1, 1.2])
+  st.markdown(
+      f"<div class='main-header'>{t['users_title']}</div>",
+      unsafe_allow_html=True,
+  )
 
-    with col_user1:
-        with st.form("form_nuevo_usuario"):
-            new_username = st.text_input(t["lbl_new_username"])
-            new_password = st.text_input(t["lbl_new_password"], type="password")
-            fullname = st.text_input(t["lbl_fullname"])
+  col_user1, col_user2 = st.columns([1, 1.2])
 
-            if st.form_submit_button(t["btn_create_user"]):
-                if new_username and new_password and fullname:
-                    try:
-                        with sqlite3.connect(DB_PATH) as conn:
-                            c = conn.cursor()
-                            c.execute(
-                                "INSERT INTO usuarios (username, password, nombre_completo, rol) VALUES (?, ?, ?, ?)",
-                                (new_username, make_hashes(new_password), fullname, "Usuario Maestro")
-                            )
-                            conn.commit()
-                        clear_data_cache()
-                        st.success(t["msg_user_success"])
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("El nombre de usuario ya existe en el sistema.")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+  with col_user1:
+    with st.form("form_nuevo_usuario"):
+      new_username = st.text_input(t["lbl_new_username"])
+      new_password = st.text_input(t["lbl_new_password"], type="password")
+      fullname = st.text_input(t["lbl_fullname"])
 
-    with col_user2:
-        st.subheader(t["users_list"])
-        users_df = get_usuarios_df()
-        st.dataframe(users_df, use_container_width=True)
+      if st.form_submit_button(t["btn_create_user"]):
+        if new_username and new_password and fullname:
+          try:
+            with sqlite3.connect(DB_PATH) as conn:
+              c = conn.cursor()
+              c.execute(
+                  "INSERT INTO usuarios (username, password, nombre_completo,"
+                  " rol) VALUES (?, ?, ?, ?)",
+                  (
+                      new_username,
+                      make_hashes(new_password),
+                      fullname,
+                      "Usuario Maestro",
+                  ),
+              )
+              conn.commit()
+            clear_data_cache()
+            st.success(t["msg_user_success"])
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.error("El nombre de usuario ya existe en el sistema.")
+          except Exception as e:
+            st.error(f"Error: {e}")
+
+  with col_user2:
+    st.subheader(t["users_list"])
+    users_df = get_usuarios_df()
+    st.dataframe(users_df, use_container_width=True)
