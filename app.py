@@ -354,7 +354,7 @@ def geocode_address(calle, cp, ciudad, estado):
 
 
 # ==========================================
-# BASE DE DATOS & SEGURIDAD (MIGRACIÓN ROBUSTA)
+# BASE DE DATOS & SEGURIDAD
 # ==========================================
 def make_hashes(password, salt=None):
   if not salt:
@@ -409,6 +409,7 @@ def init_db():
         },
     )
 
+    # Forzar actualización / inserción de admin para garantizar acceso
     c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
       c.execute(
@@ -420,6 +421,11 @@ def init_db():
               "Usuario Maestro",
               "Usuario Maestro",
           ),
+      )
+    else:
+      c.execute(
+          "UPDATE usuarios SET password = ? WHERE username = 'admin'",
+          (make_hashes("admin123"),),
       )
 
     # 2. Proyectos
