@@ -17,7 +17,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
-from fpdf import FPDF
+
+# Importación segura de FPDF
+try:
+    from fpdf import FPDF
+    FPDF_INSTALLED = True
+except ImportError:
+    FPDF_INSTALLED = False
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA
@@ -121,23 +127,26 @@ st.markdown(
 # ==========================================
 # GENERADOR DE PDFS (FPDF2)
 # ==========================================
-class PDFRecibo(FPDF):
-    def header(self):
-        self.set_font('Helvetica', 'B', 16)
-        self.set_text_color(2, 132, 199)
-        self.cell(0, 10, 'RATTLESNAKE SYSTEM - CONTROL DE OBRA', ln=True, align='C')
-        self.set_font('Helvetica', '', 10)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 5, 'Comprobante Oficial de Pago de Nómina', ln=True, align='C')
-        self.ln(5)
+if FPDF_INSTALLED:
+    class PDFRecibo(FPDF):
+        def header(self):
+            self.set_font('Helvetica', 'B', 16)
+            self.set_text_color(2, 132, 199)
+            self.cell(0, 10, 'RATTLESNAKE SYSTEM - CONTROL DE OBRA', ln=True, align='C')
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(100, 100, 100)
+            self.cell(0, 5, 'Comprobante Oficial', ln=True, align='C')
+            self.ln(5)
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f'Página {self.page_no()}', align='C')
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(150, 150, 150)
+            self.cell(0, 10, f'Página {self.page_no()}', align='C')
 
 def generar_pdf_recibo_bytes(row):
+    if not FPDF_INSTALLED:
+        return b"Error: FPDF2 no instalado"
     pdf = PDFRecibo()
     pdf.add_page()
     pdf.set_font('Helvetica', 'B', 12)
@@ -186,6 +195,8 @@ def generar_pdf_recibo_bytes(row):
     return bytes(pdf.output())
 
 def generar_pdf_estimacion_bytes(row):
+    if not FPDF_INSTALLED:
+        return b"Error: FPDF2 no instalado"
     pdf = PDFRecibo()
     pdf.add_page()
     pdf.set_font('Helvetica', 'B', 14)
@@ -236,7 +247,7 @@ def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archiv
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
     
     if not smtp_user or not smtp_pass:
-        return False, "⚠️ No se configuraron las credenciales SMTP en las variables de entorno."
+        return False, "⚠️ No se configuraron las credenciales SMTP en el servidor."
         
     try:
         msg = MIMEMultipart()
@@ -618,55 +629,8 @@ class SafeDict:
         return key
 
 # ==========================================
-# GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
-# ==========================================
-def geocode_address(calle, cp, ciudad, estado):
-    partes = [p.strip() for p in [calle, cp, ciudad, estado] if p and p.strip()]
-    direccion_completa = ", ".join(partes)
-
-    if not direccion_completa:
-        return None, None
-    try:
-        encoded = urllib.parse.quote(direccion_completa)
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "RattlesnakeERP/1.0"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            if data:
-                return float(data[0]["lat"]), float(data[0]["lon"])
-    except Exception:
-        pass
-    return None, None
-
-# ==========================================
 # BASE DE DATOS & SEGURIDAD
 # ==========================================
-def make_hashes(password, salt=None):
-    if not salt:
-        salt = secrets.token_hex(16)
-    key = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
-    )
-    return f"{salt}${key.hex()}"
-
-def check_hashes(password, hashed_text):
-    try:
-        if "$" not in hashed_text:
-            return hashlib.sha256(password.encode()).hexdigest() == hashed_text
-        salt, _ = hashed_text.split("$")
-        return make_hashes(password, salt) == hashed_text
-    except Exception:
-        return False
-
-def ensure_columns(cursor, table_name, columns_dict):
-    cursor.execute(f"PRAGMA table_info({table_name})")
-    existing_cols = [col[1] for col in cursor.fetchall()]
-    for col_name, col_def in columns_dict.items():
-        if col_name not in existing_cols:
-            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
-
 def init_db():
     os.makedirs("database", exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
@@ -1683,12 +1647,15 @@ elif menu_sel == t["nav_workers"]:
                 
                 c_e1, c_e2 = st.columns(2)
                 with c_e1:
-                    st.download_button(
-                        label="📄 Descargar Recibo PDF",
-                        data=pdf_bytes_nom,
-                        file_name=f"Recibo_Nomina_{row_pdf_nom['trabajador']}_{row_pdf_nom['id']}.pdf",
-                        mime="application/pdf"
-                    )
+                    if FPDF_INSTALLED:
+                        st.download_button(
+                            label="📄 Descargar Recibo PDF",
+                            data=pdf_bytes_nom,
+                            file_name=f"Recibo_Nomina_{row_pdf_nom['trabajador']}_{row_pdf_nom['id']}.pdf",
+                            mime="application/pdf"
+                        )
+                    else:
+                        st.warning("⚠️ Agrega `fpdf2` a tu `requirements.txt` en GitHub para habilitar la descarga de PDF.")
                 with c_e2:
                     msg_wa = urllib.parse.quote(f"Hola {row_pdf_nom['trabajador']}, tu recibo de nómina ID #{row_pdf_nom['id']} por un monto de ${row_pdf_nom['monto_neto']:,.2f} ha sido procesado.")
                     tel_clean = str(row_pdf_nom['telefono']).replace(" ", "").replace("-", "") if pd.notna(row_pdf_nom['telefono']) else ""
@@ -1806,12 +1773,15 @@ elif menu_sel == t["nav_estimates"]:
                 
                 ce_1, ce_2 = st.columns(2)
                 with ce_1:
-                    st.download_button(
-                        label="📄 Descargar Estimación PDF",
-                        data=pdf_bytes_est,
-                        file_name=f"Estimacion_No{row_pdf_est['numero_estimacion']}_{row_pdf_est['proyecto']}.pdf",
-                        mime="application/pdf"
-                    )
+                    if FPDF_INSTALLED:
+                        st.download_button(
+                            label="📄 Descargar Estimación PDF",
+                            data=pdf_bytes_est,
+                            file_name=f"Estimacion_No{row_pdf_est['numero_estimacion']}_{row_pdf_est['proyecto']}.pdf",
+                            mime="application/pdf"
+                        )
+                    else:
+                        st.warning("⚠️ Agrega `fpdf2` a tu `requirements.txt` en GitHub para habilitar la descarga de PDF.")
                 with ce_2:
                     email_dest = st.text_input("Correo del Cliente:", value="")
                     if st.button("📧 Enviar PDF por Correo"):
@@ -1834,10 +1804,18 @@ elif menu_sel == t["nav_estimates"]:
                     with st.form("form_cobro_cliente"):
                         est_id_sel = st.selectbox(t["estimates_select_id"], pendientes_cobro['id'].tolist())
                         row_est = pendientes_cobro[pendientes_cobro['id'] == est_id_sel].iloc[0]
-                        saldo_cobro_pen = row_est['monto_neto_cobrar'] - row_est['monto_cobrado']
+                        saldo_cobro_pen = round(float(row_est['monto_neto_cobrar'] - row_est['monto_cobrado']), 2)
                         
                         st.info(f"🏢 Obra: **{row_est['proyecto']}** | Cliente: **{row_est['cliente']}** | Saldo Pendiente: **${saldo_cobro_pen:,.2f}**")
-                        monto_abono_cliente = st.number_input(t["estimates_amount_input"], min_value=0.01, max_value=float(saldo_cobro_pen), step=5000.0)
+                        
+                        max_val_cobro = max(0.01, saldo_cobro_pen)
+                        monto_abono_cliente = st.number_input(
+                            t["estimates_amount_input"], 
+                            min_value=0.01, 
+                            max_value=max_val_cobro, 
+                            value=max_val_cobro,
+                            step=5000.0 if max_val_cobro >= 5000.0 else 0.01
+                        )
 
                         if st.form_submit_button(t["estimates_pay_submit"]):
                             nuevo_cobrado = row_est['monto_cobrado'] + monto_abono_cliente
