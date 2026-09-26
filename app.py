@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 import urllib.parse
 import urllib.request
-from datetime import datetime, date
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
@@ -131,6 +131,8 @@ TEXTS = {
         "nav_balance": "📊 Balance Financiero",
         "nav_obras": "🏗️ Obras & Ubicaciones",
         "nav_workers": "👷 Personal & Trabajadores",
+        "nav_payroll": "💵 Control de Nómina & Sueldos",
+        "nav_estimates": "📐 Estimaciones & Cobro a Clientes",
         "nav_costos": "💰 Registro de Costos",
         "nav_cxp": "💳 Cuentas por Pagar (CxP)",
         "nav_req": "📋 Requisiciones de Campo",
@@ -180,6 +182,12 @@ TEXTS = {
         "lbl_assign_obra": "Asignar a Obra",
         "btn_save_worker": "Registrar Trabajador",
         "msg_worker_success": "Trabajador registrado exitosamente.",
+        "payroll_title": "💵 Control de Nómina, Destajos & Adeudos a Trabajadores",
+        "tab_active_payroll": "📌 Historial de Nóminas & Aplicar Pagos",
+        "tab_new_payroll": "➕ Calcular / Generar Nómina",
+        "estimates_title": "📐 Estimaciones de Obra & Control de Cobros a Clientes",
+        "tab_active_estimates": "📌 Estimaciones Registradas & Cobros",
+        "tab_new_estimate": "➕ Emitir Nueva Estimación",
         "costos_title": "💰 Captura & Control Metódico de Costos",
         "lbl_select_obra": "Seleccionar Obra",
         "lbl_cat": "Categoría de Costo",
@@ -232,6 +240,8 @@ TEXTS = {
         "nav_balance": "📊 Financial Balance",
         "nav_obras": "🏗️ Projects & Locations",
         "nav_workers": "👷 Personnel & Workers",
+        "nav_payroll": "💵 Payroll & Wages Control",
+        "nav_estimates": "📐 Project Estimates & Client Billing",
         "nav_costos": "💰 Cost Tracking",
         "nav_cxp": "💳 Accounts Payable",
         "nav_req": "📋 Field Requisitions",
@@ -281,6 +291,12 @@ TEXTS = {
         "lbl_assign_obra": "Assign to Site",
         "btn_save_worker": "Register Worker",
         "msg_worker_success": "Worker registered successfully.",
+        "payroll_title": "💵 Payroll Control, Wages & Worker Dues",
+        "tab_active_payroll": "📌 Payroll History & Apply Payments",
+        "tab_new_payroll": "➕ Calculate / Generate Payroll",
+        "estimates_title": "📐 Site Progress Estimates & Client Invoicing",
+        "tab_active_estimates": "📌 Registered Estimates & Collections",
+        "tab_new_estimate": "➕ Issue New Estimate",
         "costos_title": "💰 Systematic Cost Tracking",
         "lbl_select_obra": "Select Project",
         "lbl_cat": "Cost Category",
@@ -458,6 +474,8 @@ def init_db():
                 puesto TEXT NOT NULL,
                 telefono TEXT,
                 proyecto_id INTEGER,
+                salario_diario REAL DEFAULT 0.0,
+                tipo_pago TEXT DEFAULT 'Semanal',
                 estatus TEXT DEFAULT 'Activo',
                 fecha_registro DATE DEFAULT CURRENT_DATE,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
@@ -471,12 +489,91 @@ def init_db():
                 "puesto": "TEXT DEFAULT ''",
                 "telefono": "TEXT DEFAULT ''",
                 "proyecto_id": "INTEGER",
+                "salario_diario": "REAL DEFAULT 0.0",
+                "tipo_pago": "TEXT DEFAULT 'Semanal'",
                 "estatus": "TEXT DEFAULT 'Activo'",
                 "fecha_registro": "DATE DEFAULT CURRENT_DATE",
             },
         )
 
-        # 4. Costos
+        # 4. Nóminas (Control de Sueldos y Adeudos)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS nominas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trabajador_id INTEGER,
+                proyecto_id INTEGER,
+                periodo_inicio DATE,
+                periodo_fin DATE,
+                dias_trabajados REAL DEFAULT 0.0,
+                monto_base REAL DEFAULT 0.0,
+                bonos_extras REAL DEFAULT 0.0,
+                descuentos REAL DEFAULT 0.0,
+                monto_neto REAL DEFAULT 0.0,
+                estatus TEXT DEFAULT 'Pendiente',
+                fecha_pago DATE,
+                registrado_por TEXT,
+                FOREIGN KEY (trabajador_id) REFERENCES trabajadores (id),
+                FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
+            )
+        """)
+        ensure_columns(
+            c,
+            "nominas",
+            {
+                "trabajador_id": "INTEGER",
+                "proyecto_id": "INTEGER",
+                "periodo_inicio": "DATE",
+                "periodo_fin": "DATE",
+                "dias_trabajados": "REAL DEFAULT 0.0",
+                "monto_base": "REAL DEFAULT 0.0",
+                "bonos_extras": "REAL DEFAULT 0.0",
+                "descuentos": "REAL DEFAULT 0.0",
+                "monto_neto": "REAL DEFAULT 0.0",
+                "estatus": "TEXT DEFAULT 'Pendiente'",
+                "fecha_pago": "DATE",
+                "registrado_por": "TEXT DEFAULT ''",
+            },
+        )
+
+        # 5. Estimaciones (Cobro a Clientes)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS estimaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                proyecto_id INTEGER,
+                numero_estimacion INTEGER NOT NULL,
+                concepto_periodo TEXT NOT NULL,
+                monto_estimado REAL NOT NULL,
+                amortizacion_anticipo REAL DEFAULT 0.0,
+                retencion_garantia REAL DEFAULT 0.0,
+                monto_neto_cobrar REAL NOT NULL,
+                monto_cobrado REAL DEFAULT 0.0,
+                estatus TEXT DEFAULT 'Pendiente',
+                fecha_emision DATE DEFAULT CURRENT_DATE,
+                fecha_cobro DATE,
+                registrado_por TEXT NOT NULL,
+                FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
+            )
+        """)
+        ensure_columns(
+            c,
+            "estimaciones",
+            {
+                "proyecto_id": "INTEGER",
+                "numero_estimacion": "INTEGER DEFAULT 1",
+                "concepto_periodo": "TEXT DEFAULT ''",
+                "monto_estimado": "REAL DEFAULT 0.0",
+                "amortizacion_anticipo": "REAL DEFAULT 0.0",
+                "retencion_garantia": "REAL DEFAULT 0.0",
+                "monto_neto_cobrar": "REAL DEFAULT 0.0",
+                "monto_cobrado": "REAL DEFAULT 0.0",
+                "estatus": "TEXT DEFAULT 'Pendiente'",
+                "fecha_emision": "DATE DEFAULT CURRENT_DATE",
+                "fecha_cobro": "DATE",
+                "registrado_por": "TEXT DEFAULT ''",
+            },
+        )
+
+        # 6. Costos
         c.execute("""
             CREATE TABLE IF NOT EXISTS costos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -504,7 +601,7 @@ def init_db():
             },
         )
 
-        # 5. Cuentas por pagar
+        # 7. Cuentas por pagar
         c.execute("""
             CREATE TABLE IF NOT EXISTS cuentas_por_pagar (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -534,7 +631,7 @@ def init_db():
             },
         )
 
-        # 6. Requisiciones
+        # 8. Requisiciones
         c.execute("""
             CREATE TABLE IF NOT EXISTS requisiciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -586,6 +683,32 @@ def get_trabajadores_df(proyecto_id=None):
             )
         return pd.read_sql_query(
             "SELECT t.*, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM trabajadores t LEFT JOIN proyectos p ON t.proyecto_id = p.id ORDER BY t.id DESC",
+            conn,
+        )
+
+@st.cache_data(ttl=60)
+def get_nominas_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query(
+                "SELECT n.*, t.nombre_completo as trabajador, t.puesto, p.nombre as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id WHERE n.proyecto_id = ? ORDER BY n.id DESC",
+                conn, params=(proyecto_id,)
+            )
+        return pd.read_sql_query(
+            "SELECT n.*, t.nombre_completo as trabajador, t.puesto, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id ORDER BY n.id DESC",
+            conn,
+        )
+
+@st.cache_data(ttl=60)
+def get_estimaciones_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query(
+                "SELECT e.*, p.nombre as proyecto, p.cliente FROM estimaciones e JOIN proyectos p ON e.proyecto_id = p.id WHERE e.proyecto_id = ? ORDER BY e.id DESC",
+                conn, params=(proyecto_id,)
+            )
+        return pd.read_sql_query(
+            "SELECT e.*, p.nombre as proyecto, p.cliente FROM estimaciones e JOIN proyectos p ON e.proyecto_id = p.id ORDER BY e.id DESC",
             conn,
         )
 
@@ -701,6 +824,8 @@ opciones_menu = [
     t["nav_balance"],
     t["nav_obras"],
     t["nav_workers"],
+    t["nav_payroll"],
+    t["nav_estimates"],
     t["nav_costos"],
     t["nav_cxp"],
     t["nav_req"],
@@ -750,7 +875,6 @@ if menu_sel == t["nav_director"]:
 
     proyectos_df = get_proyectos_df()
     
-    # Aplicar filtro global si no es 'Todas las Obras'
     if global_obra_sel != "Todas las Obras":
         proyectos_df = proyectos_df[proyectos_df['nombre'] == global_obra_sel]
         selected_p_id = proyectos_dict_global.get(global_obra_sel)
@@ -973,7 +1097,6 @@ elif menu_sel == t["nav_obras"]:
         df_obras = get_proyectos_df()
         
         if not df_obras.empty:
-            # Aplicar filtros locales de la pestaña
             if filtro_estatus_obra:
                 df_obras = df_obras[df_obras['estado'].isin(filtro_estatus_obra)]
             if buscar_obra:
@@ -1162,6 +1285,8 @@ elif menu_sel == t["nav_obras"]:
                         c.execute("DELETE FROM costos WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM cuentas_por_pagar WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM requisiciones WHERE proyecto_id = ?", (id_borrar,))
+                        c.execute("DELETE FROM estimaciones WHERE proyecto_id = ?", (id_borrar,))
+                        c.execute("DELETE FROM nominas WHERE proyecto_id = ?", (id_borrar,))
                         c.execute("DELETE FROM proyectos WHERE id = ?", (id_borrar,))
                         conn.commit()
                     clear_data_cache()
@@ -1214,11 +1339,13 @@ elif menu_sel == t["nav_workers"]:
                 ]
 
             st.dataframe(
-                df_mostrar[["id", "nombre_completo", "puesto", "telefono", "proyecto", "estatus", "fecha_registro"]],
+                df_mostrar[["id", "nombre_completo", "puesto", "salario_diario", "tipo_pago", "telefono", "proyecto", "estatus", "fecha_registro"]],
                 column_config={
                     "id": "ID",
                     "nombre_completo": "Trabajador",
                     "puesto": "Puesto / Especialidad",
+                    "salario_diario": st.column_config.NumberColumn("Sueldo Base ($)", format="$%,.2f"),
+                    "tipo_pago": "Modalidad",
                     "telefono": "Teléfono",
                     "proyecto": "Obra Asignada",
                     "estatus": "Estatus",
@@ -1227,35 +1354,47 @@ elif menu_sel == t["nav_workers"]:
             )
 
             st.markdown("---")
-            st.subheader("🔄 Reasignar Trabajador a Otra Obra")
+            st.subheader("🔄 Reasignar Trabajador o Modificar Sueldo Base")
 
             with st.form("form_reasignar_trabajador"):
                 trabajador_dict = dict(zip(trabajadores_df["nombre_completo"] + " (" + trabajadores_df["puesto"] + ")", trabajadores_df["id"]))
                 trabajador_sel = st.selectbox("Seleccionar Trabajador", list(trabajador_dict.keys()))
-                nueva_obra_sel = st.selectbox("Nueva Obra Asignada", ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()))
+                trab_row = trabajadores_df[trabajadores_df['id'] == trabajador_dict[trabajador_sel]].iloc[0]
+                
+                c_re1, c_re2, c_re3 = st.columns(3)
+                with c_re1:
+                    nueva_obra_sel = st.selectbox("Nueva Obra Asignada", ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()))
+                with c_re2:
+                    nuevo_sueldo_val = st.number_input("Nuevo Sueldo Base ($)", value=float(trab_row['salario_diario']), step=50.0)
+                with c_re3:
+                    nuevo_tipo_pago = st.selectbox("Modalidad de Pago", ["Semanal", "Diario", "Destajo / Proyecto", "Quincenal"], index=0)
 
-                if st.form_submit_button("Guardar Cambios de Asignación"):
+                if st.form_submit_button("Guardar Cambios de Ficha"):
                     trab_id = trabajador_dict[trabajador_sel]
                     nueva_obra_id = proyectos_dict[nueva_obra_sel] if nueva_obra_sel != "Sin Asignar / Oficina" else None
 
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
-                        c.execute("UPDATE trabajadores SET proyecto_id = ? WHERE id = ?", (nueva_obra_id, trab_id))
+                        c.execute("UPDATE trabajadores SET proyecto_id = ?, salario_diario = ?, tipo_pago = ? WHERE id = ?", (nueva_obra_id, nuevo_sueldo_val, nuevo_tipo_pago, trab_id))
                         conn.commit()
                     clear_data_cache()
-                    st.success("Reasignación completada correctamente.")
+                    st.success("Ficha del trabajador actualizada correctamente.")
                     st.rerun()
         else:
             st.info("No hay trabajadores registrados en la base de datos.")
 
     with tab2:
         with st.form("form_nuevo_trabajador"):
-            w_nombre = st.text_input(t["lbl_worker_name"])
-            w_puesto = st.text_input(t["lbl_position"])
-            w_telefono = st.text_input(t["lbl_phone"])
-
-            opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
-            w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
+            c_tw1, c_tw2 = st.columns(2)
+            with c_tw1:
+                w_nombre = st.text_input(t["lbl_worker_name"])
+                w_puesto = st.text_input(t["lbl_position"])
+                w_telefono = st.text_input(t["lbl_phone"])
+            with c_tw2:
+                w_salario = st.number_input("Sueldo Base ($)", min_value=0.0, value=400.0, step=50.0)
+                w_tipo_pago = st.selectbox("Modalidad de Pago", ["Semanal", "Diario", "Destajo / Proyecto", "Quincenal"])
+                opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
+                w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
 
             if st.form_submit_button(t["btn_save_worker"]):
                 if w_nombre and w_puesto:
@@ -1264,8 +1403,8 @@ elif menu_sel == t["nav_workers"]:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
-                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id) VALUES (?, ?, ?, ?)",
-                                (w_nombre, w_puesto, w_telefono, obra_id_val),
+                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id, salario_diario, tipo_pago) VALUES (?, ?, ?, ?, ?, ?)",
+                                (w_nombre, w_puesto, w_telefono, obra_id_val, w_salario, w_tipo_pago),
                             )
                             conn.commit()
                         clear_data_cache()
@@ -1273,6 +1412,266 @@ elif menu_sel == t["nav_workers"]:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al guardar trabajador: {e}")
+
+# ==========================================
+# 3.1 CONTROL DE NÓMINA & SUELDOS
+# ==========================================
+elif menu_sel == t["nav_payroll"]:
+    st.markdown(f"<div class='main-header'>{t['payroll_title']}</div>", unsafe_allow_html=True)
+
+    proyectos_df = get_proyectos_df()
+    proyectos_dict = dict(zip(proyectos_df["nombre"], proyectos_df["id"])) if not proyectos_df.empty else {}
+    
+    tab1, tab2 = st.tabs([t["tab_active_payroll"], t["tab_new_payroll"]])
+
+    with tab1:
+        st.subheader("🔍 Filtros de Nómina")
+        np_f1, np_f2, np_f3 = st.columns([1, 1, 1.5])
+        with np_f1:
+            f_estatus_nom = st.multiselect("Estatus de Pago:", ["Pendiente", "Pagado"], default=["Pendiente", "Pagado"])
+        with np_f2:
+            f_obra_nom = st.selectbox("Obra:", ["Todas las Obras"] + list(proyectos_dict.keys()), index=0 if global_obra_sel == "Todas las Obras" else (list(proyectos_dict.keys()).index(global_obra_sel) + 1 if global_obra_sel in proyectos_dict else 0))
+        with np_f3:
+            f_buscar_worker_nom = st.text_input("🔎 Buscar Trabajador:", "")
+
+        nominas_df = get_nominas_df()
+
+        if not nominas_df.empty:
+            df_nom_filtrada = nominas_df.copy()
+            if f_estatus_nom:
+                df_nom_filtrada = df_nom_filtrada[df_nom_filtrada['estatus'].isin(f_estatus_nom)]
+            if f_obra_nom != "Todas las Obras":
+                df_nom_filtrada = df_nom_filtrada[df_nom_filtrada['proyecto'] == f_obra_nom]
+            if f_buscar_worker_nom:
+                df_nom_filtrada = df_nom_filtrada[df_nom_filtrada['trabajador'].str.lower().str.contains(f_buscar_worker_nom.lower())]
+
+            total_adeudo_nomina = df_nom_filtrada[df_nom_filtrada['estatus'] == 'Pendiente']['monto_neto'].sum()
+            total_pagado_nomina = df_nom_filtrada[df_nom_filtrada['estatus'] == 'Pagado']['monto_neto'].sum()
+
+            nk1, nk2 = st.columns(2)
+            nk1.metric("🔴 Saldo Pendiente por Pagar (Adeudo)", f"${total_adeudo_nomina:,.2f}")
+            nk2.metric("🟢 Total Nómina Liquida / Pagada", f"${total_pagado_nomina:,.2f}")
+
+            st.markdown("---")
+            st.dataframe(
+                df_nom_filtrada[["id", "trabajador", "puesto", "proyecto", "periodo_inicio", "periodo_fin", "dias_trabajados", "monto_base", "bonos_extras", "descuentos", "monto_neto", "estatus", "fecha_pago"]],
+                column_config={
+                    "id": "ID",
+                    "monto_base": st.column_config.NumberColumn("Sueldo Base", format="$%,.2f"),
+                    "bonos_extras": st.column_config.NumberColumn("Extras", format="$%,.2f"),
+                    "descuentos": st.column_config.NumberColumn("Deducciones", format="$%,.2f"),
+                    "monto_neto": st.column_config.NumberColumn("Neto a Pagar", format="$%,.2f"),
+                },
+                use_container_width=True
+            )
+
+            st.markdown("---")
+            st.subheader("💸 Liquidar / Liquidar Adeudo de Nómina")
+            pendientes_nom = df_nom_filtrada[df_nom_filtrada['estatus'] == 'Pendiente']
+
+            if not pendientes_nom.empty:
+                with st.form("form_pagar_nomina"):
+                    nom_id_sel = st.selectbox("Seleccionar ID de Nómina a Liquidar", pendientes_nom['id'].tolist())
+                    row_nom = pendientes_nom[pendientes_nom['id'] == nom_id_sel].iloc[0]
+                    st.info(f"💵 Trabajador: **{row_nom['trabajador']}** | Obra: **{row_nom['proyecto']}** | Neto a Pagar: **${row_nom['monto_neto']:,.2f}**")
+                    
+                    if st.form_submit_button("✅ Registrar Pago y Cargar a Costos de Mano de Obra"):
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute("UPDATE nominas SET estatus = 'Pagado', fecha_pago = CURRENT_DATE WHERE id = ?", (nom_id_sel,))
+                            if row_nom['proyecto_id']:
+                                c.execute(
+                                    "INSERT INTO costos (proyecto_id, categoria, concepto, monto, fecha, registrado_por, observaciones) VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)",
+                                    (
+                                        row_nom['proyecto_id'],
+                                        "Mano de Obra / Labor",
+                                        f"Pago de Nómina #{nom_id_sel}: {row_nom['trabajador']} ({row_nom['periodo_inicio']} al {row_nom['periodo_fin']})",
+                                        row_nom['monto_neto'],
+                                        user['nombre'],
+                                        f"Pago Nómina Ref #{nom_id_sel}"
+                                    )
+                                )
+                            conn.commit()
+                        clear_data_cache()
+                        st.success("🎉 Pago de nómina registrado y cargado a costos de obra automáticamente.")
+                        st.rerun()
+            else:
+                st.success("🎉 ¡No hay nóminas ni sueldos pendientes por liquidar!")
+        else:
+            st.info("Sin registros de nómina generados.")
+
+    with tab2:
+        trabajadores_df = get_trabajadores_df()
+        if trabajadores_df.empty:
+            st.warning("Registra trabajadores primero en el módulo de Personal.")
+        else:
+            with st.form("form_nueva_nomina"):
+                trab_dict_nom = dict(zip(trabajadores_df['nombre_completo'] + " - " + trabajadores_df['puesto'], trabajadores_df['id']))
+                w_sel_nom = st.selectbox("Seleccionar Trabajador", list(trab_dict_nom.keys()))
+                trab_id_nom = trab_dict_nom[w_sel_nom]
+                trab_row_nom = trabajadores_df[trabajadores_df['id'] == trab_id_nom].iloc[0]
+
+                c_n1, c_n2 = st.columns(2)
+                with c_n1:
+                    p_inicio = st.date_input("Inicio de Periodo", datetime.now())
+                    p_fin = st.date_input("Fin de Periodo", datetime.now())
+                    dias_trab = st.number_input("Días Trabajados", min_value=0.5, value=6.0, step=0.5)
+                with c_n2:
+                    sueldo_diario_val = st.number_input("Sueldo Base por Día ($)", value=float(trab_row_nom['salario_diario']), step=50.0)
+                    bonos_val = st.number_input("Bonos / Horas Extras / Destajo ($)", min_value=0.0, value=0.0, step=100.0)
+                    descuentos_val = st.number_input("Descuentos / Anticipos / Deducciones ($)", min_value=0.0, value=0.0, step=50.0)
+
+                monto_base_calc = dias_trab * sueldo_diario_val
+                monto_neto_calc = monto_base_calc + bonos_val - descuentos_val
+                
+                st.markdown(f"### 🧮 Total Calculado a Pagar: **${monto_neto_calc:,.2f}**")
+
+                if st.form_submit_button("💾 Generar Recibo / Pre-Nómina"):
+                    try:
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute(
+                                "INSERT INTO nominas (trabajador_id, proyecto_id, periodo_inicio, periodo_fin, dias_trabajados, monto_base, bonos_extras, descuentos, monto_neto, registrado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (
+                                    trab_id_nom,
+                                    trab_row_nom['proyecto_id'],
+                                    p_inicio,
+                                    p_fin,
+                                    dias_trab,
+                                    monto_base_calc,
+                                    bonos_val,
+                                    descuentos_val,
+                                    monto_neto_calc,
+                                    user['nombre']
+                                )
+                            )
+                            conn.commit()
+                        clear_data_cache()
+                        st.success("✅ Nómina generada correctamente con estatus Pendiente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al generar nómina: {e}")
+
+# ==========================================
+# 3.2 ESTIMACIONES & COBRO A CLIENTES
+# ==========================================
+elif menu_sel == t["nav_estimates"]:
+    st.markdown(f"<div class='main-header'>{t['estimates_title']}</div>", unsafe_allow_html=True)
+
+    proyectos_df = get_proyectos_df()
+    if proyectos_df.empty:
+        st.warning("Registra un proyecto u obra primero.")
+    else:
+        proyectos_dict = dict(zip(proyectos_df["nombre"], proyectos_df["id"]))
+        tab1, tab2 = st.tabs([t["tab_active_estimates"], t["tab_new_estimate"]])
+
+        with tab1:
+            st.subheader("🔍 Filtros de Estimaciones")
+            ef_1, ef_2 = st.columns([1, 1.5])
+            with ef_1:
+                f_obra_est = st.selectbox("Filtrar Obra:", ["Todas las Obras"] + list(proyectos_dict.keys()), index=0 if global_obra_sel == "Todas las Obras" else (list(proyectos_dict.keys()).index(global_obra_sel) + 1 if global_obra_sel in proyectos_dict else 0))
+            with ef_2:
+                f_estatus_est = st.multiselect("Estatus de Cobro:", ["Pendiente", "Cobrado Parcial", "Cobrado"], default=["Pendiente", "Cobrado Parcial", "Cobrado"])
+
+            estimaciones_df = get_estimaciones_df()
+
+            if not estimaciones_df.empty:
+                df_est_filtrada = estimaciones_df.copy()
+                if f_obra_est != "Todas las Obras":
+                    df_est_filtrada = df_est_filtrada[df_est_filtrada['proyecto'] == f_obra_est]
+                if f_estatus_est:
+                    df_est_filtrada = df_est_filtrada[df_est_filtrada['estatus'].isin(f_estatus_est)]
+
+                total_estimado_bruto = df_est_filtrada['monto_estimado'].sum()
+                total_cobrar_neto = df_est_filtrada['monto_neto_cobrar'].sum()
+                total_cobrado_cliente = df_est_filtrada['monto_cobrado'].sum()
+                saldo_pendiente_cliente = total_cobrar_neto - total_cobrado_cliente
+
+                ek1, ek2, ek3 = st.columns(3)
+                ek1.metric("📐 Total Neto Emitido", f"${total_cobrar_neto:,.2f}")
+                ek2.metric("🟢 Total Cobrado a Clientes", f"${total_cobrado_cliente:,.2f}")
+                ek3.metric("🔴 Saldo Pendiente por Cobrar", f"${saldo_pendiente_cliente:,.2f}")
+
+                st.markdown("---")
+                st.dataframe(
+                    df_est_filtrada[["id", "numero_estimacion", "proyecto", "cliente", "concepto_periodo", "monto_estimado", "amortizacion_anticipo", "retencion_garantia", "monto_neto_cobrar", "monto_cobrado", "estatus", "fecha_emision"]],
+                    column_config={
+                        "monto_estimado": st.column_config.NumberColumn("Monto Bruto", format="$%,.2f"),
+                        "amortizacion_anticipo": st.column_config.NumberColumn("Anticipo Deducido", format="$%,.2f"),
+                        "retencion_garantia": st.column_config.NumberColumn("Fondo Garantía", format="$%,.2f"),
+                        "monto_neto_cobrar": st.column_config.NumberColumn("Neto a Cobrar", format="$%,.2f"),
+                        "monto_cobrado": st.column_config.NumberColumn("Cobrado", format="$%,.2f"),
+                    },
+                    use_container_width=True
+                )
+
+                st.markdown("---")
+                st.subheader("💵 Registrar Cobro / Abono de Cliente")
+                pendientes_cobro = df_est_filtrada[df_est_filtrada['monto_cobrado'] < df_est_filtrada['monto_neto_cobrar']]
+
+                if not pendientes_cobro.empty:
+                    with st.form("form_cobro_cliente"):
+                        est_id_sel = st.selectbox("Seleccionar ID de Estimación a Cobrar", pendientes_cobro['id'].tolist())
+                        row_est = pendientes_cobro[pendientes_cobro['id'] == est_id_sel].iloc[0]
+                        saldo_cobro_pen = row_est['monto_neto_cobrar'] - row_est['monto_cobrado']
+                        
+                        st.info(f"🏢 Obra: **{row_est['proyecto']}** | Cliente: **{row_est['cliente']}** | Saldo Pendiente de Cobro: **${saldo_cobro_pen:,.2f}**")
+                        monto_abono_cliente = st.number_input("Monto Ingresado / Abonado ($)", min_value=0.01, max_value=float(saldo_cobro_pen), step=5000.0)
+
+                        if st.form_submit_button("✅ Registrar Cobro de Estimación"):
+                            nuevo_cobrado = row_est['monto_cobrado'] + monto_abono_cliente
+                            nuevo_est_status = "Cobrado" if nuevo_cobrado >= row_est['monto_neto_cobrar'] else "Cobrado Parcial"
+
+                            with sqlite3.connect(DB_PATH) as conn:
+                                c = conn.cursor()
+                                c.execute(
+                                    "UPDATE estimaciones SET monto_cobrado = ?, estatus = ?, fecha_cobro = CURRENT_DATE WHERE id = ?",
+                                    (nuevo_cobrado, nuevo_est_status, est_id_sel)
+                                )
+                                conn.commit()
+                            clear_data_cache()
+                            st.success("🎉 ¡Ingreso de cobro a cliente registrado correctamente!")
+                            st.rerun()
+                else:
+                    st.success("🎉 ¡Todas las estimaciones de los filtros seleccionados han sido cobradas al 100%!")
+            else:
+                st.info("No hay estimaciones registradas actualmente.")
+
+    with tab2:
+        with st.form("form_nueva_estimacion"):
+            obra_est_sel = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()))
+            obra_id_est = proyectos_dict[obra_est_sel]
+
+            c_es1, c_es2 = st.columns(2)
+            with c_es1:
+                num_est = st.number_input("Número de Estimación (#)", min_value=1, value=1, step=1)
+                concepto_est = st.text_input("Concepto / Periodo de la Estimación (ej. Avance Semana 12 - Muros y Losas)")
+                monto_bruto_est = st.number_input("Monto Bruto Estimado / Ejecutado ($)", min_value=0.01, step=10000.0)
+            with c_es2:
+                pct_anticipo = st.number_input("% Amortización de Anticipo", min_value=0.0, max_value=100.0, value=0.0, step=5.0)
+                pct_garantia = st.number_input("% Retención de Fondo de Garantía", min_value=0.0, max_value=50.0, value=5.0, step=1.0)
+
+            m_anticipo = monto_bruto_est * (pct_anticipo / 100.0)
+            m_garantia = monto_bruto_est * (pct_garantia / 100.0)
+            m_neto_cobrar = monto_bruto_est - m_anticipo - m_garantia
+
+            st.markdown(f"### 🧮 Neto Facturable a Cobrar: **${m_neto_cobrar:,.2f}** *(Deducciones: Anticipo ${m_anticipo:,.2f} | Fondo Garantía ${m_garantia:,.2f})*")
+
+            if st.form_submit_button("📐 Emitir Estimación de Obra"):
+                if concepto_est and monto_bruto_est > 0:
+                    try:
+                        with sqlite3.connect(DB_PATH) as conn:
+                            c = conn.cursor()
+                            c.execute(
+                                "INSERT INTO estimaciones (proyecto_id, numero_estimacion, concepto_periodo, monto_estimado, amortizacion_anticipo, retencion_garantia, monto_neto_cobrar, registrado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                (obra_id_est, num_est, concepto_est, monto_bruto_est, m_anticipo, m_garantia, m_neto_cobrar, user['nombre'])
+                            )
+                            conn.commit()
+                        clear_data_cache()
+                        st.success("✅ Estimación emitida exitosamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al registrar estimación: {e}")
 
 # ==========================================
 # 4. COSTOS
@@ -1288,7 +1687,6 @@ elif menu_sel == t["nav_costos"]:
         col_sel, col_form = st.columns([1, 1.2])
 
         with col_sel:
-            # Sincronizado con la barra lateral
             idx_obra = list(proyectos_dict.keys()).index(global_obra_sel) if global_obra_sel in proyectos_dict else 0
             obra_sel = st.selectbox(t["lbl_select_obra"], list(proyectos_dict.keys()), index=idx_obra)
             obra_id = proyectos_dict[obra_sel]
