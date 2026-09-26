@@ -131,7 +131,7 @@ TEXTS = {
         "nav_balance": "📊 Balance Financiero",
         "nav_obras": "🏗️ Obras & Ubicaciones",
         "nav_workers": "👷 Personal & Trabajadores",
-        "nav_payroll": "💵 Control de Nómina & Sueldos",
+        "nav_payroll": "💵 Nómina & Control de Horas",
         "nav_estimates": "📐 Estimaciones & Cobro a Clientes",
         "nav_costos": "💰 Registro de Costos",
         "nav_cxp": "💳 Cuentas por Pagar (CxP)",
@@ -173,7 +173,7 @@ TEXTS = {
         "lbl_lon": "Longitud GPS (Opcional)",
         "btn_save_obra": "Guardar Proyecto",
         "msg_obra_success": "Obra guardada exitosamente.",
-        "workers_title": "👷 Control de Personal & Asignación a Obras",
+        "workers_title": "👷 Control de Personal & Tarifas por Hora",
         "tab_workers_list": "📌 Lista & Asignación de Personal",
         "tab_new_worker": "➕ Registrar Nuevo Trabajador",
         "lbl_worker_name": "Nombre Completo del Trabajador",
@@ -182,9 +182,9 @@ TEXTS = {
         "lbl_assign_obra": "Asignar a Obra",
         "btn_save_worker": "Registrar Trabajador",
         "msg_worker_success": "Trabajador registrado exitosamente.",
-        "payroll_title": "💵 Control de Nómina, Destajos & Adeudos a Trabajadores",
+        "payroll_title": "💵 Nómina, Pago por Hora & Control de Horas Extras",
         "tab_active_payroll": "📌 Historial de Nóminas & Aplicar Pagos",
-        "tab_new_payroll": "➕ Calcular / Generar Nómina",
+        "tab_new_payroll": "➕ Calcular Nómina por Horas",
         "estimates_title": "📐 Estimaciones de Obra & Control de Cobros a Clientes",
         "tab_active_estimates": "📌 Estimaciones Registradas & Cobros",
         "tab_new_estimate": "➕ Emitir Nueva Estimación",
@@ -240,7 +240,7 @@ TEXTS = {
         "nav_balance": "📊 Financial Balance",
         "nav_obras": "🏗️ Projects & Locations",
         "nav_workers": "👷 Personnel & Workers",
-        "nav_payroll": "💵 Payroll & Wages Control",
+        "nav_payroll": "💵 Payroll & Hourly Control",
         "nav_estimates": "📐 Project Estimates & Client Billing",
         "nav_costos": "💰 Cost Tracking",
         "nav_cxp": "💳 Accounts Payable",
@@ -282,7 +282,7 @@ TEXTS = {
         "lbl_lon": "GPS Longitude (Optional)",
         "btn_save_obra": "Save Project",
         "msg_obra_success": "Project saved successfully.",
-        "workers_title": "👷 Personnel Control & Site Assignment",
+        "workers_title": "👷 Personnel Control & Hourly Rates",
         "tab_workers_list": "📌 Staff List & Assignment",
         "tab_new_worker": "➕ Register New Worker",
         "lbl_worker_name": "Worker Full Name",
@@ -291,9 +291,9 @@ TEXTS = {
         "lbl_assign_obra": "Assign to Site",
         "btn_save_worker": "Register Worker",
         "msg_worker_success": "Worker registered successfully.",
-        "payroll_title": "💵 Payroll Control, Wages & Worker Dues",
+        "payroll_title": "💵 Payroll, Hourly Wage & Overtime Control",
         "tab_active_payroll": "📌 Payroll History & Apply Payments",
-        "tab_new_payroll": "➕ Calculate / Generate Payroll",
+        "tab_new_payroll": "➕ Calculate Hourly Payroll",
         "estimates_title": "📐 Site Progress Estimates & Client Invoicing",
         "tab_active_estimates": "📌 Registered Estimates & Collections",
         "tab_new_estimate": "➕ Issue New Estimate",
@@ -466,7 +466,7 @@ def init_db():
             },
         )
 
-        # 3. Trabajadores
+        # 3. Trabajadores (con Tarifa por Hora)
         c.execute("""
             CREATE TABLE IF NOT EXISTS trabajadores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -475,7 +475,8 @@ def init_db():
                 telefono TEXT,
                 proyecto_id INTEGER,
                 salario_diario REAL DEFAULT 0.0,
-                tipo_pago TEXT DEFAULT 'Semanal',
+                tarifa_hora REAL DEFAULT 0.0,
+                tipo_pago TEXT DEFAULT 'Por Hora',
                 estatus TEXT DEFAULT 'Activo',
                 fecha_registro DATE DEFAULT CURRENT_DATE,
                 FOREIGN KEY (proyecto_id) REFERENCES proyectos (id)
@@ -490,13 +491,14 @@ def init_db():
                 "telefono": "TEXT DEFAULT ''",
                 "proyecto_id": "INTEGER",
                 "salario_diario": "REAL DEFAULT 0.0",
-                "tipo_pago": "TEXT DEFAULT 'Semanal'",
+                "tarifa_hora": "REAL DEFAULT 0.0",
+                "tipo_pago": "TEXT DEFAULT 'Por Hora'",
                 "estatus": "TEXT DEFAULT 'Activo'",
                 "fecha_registro": "DATE DEFAULT CURRENT_DATE",
             },
         )
 
-        # 4. Nóminas (Control de Sueldos y Adeudos)
+        # 4. Nóminas (con Horas Normales y Extras)
         c.execute("""
             CREATE TABLE IF NOT EXISTS nominas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -504,7 +506,9 @@ def init_db():
                 proyecto_id INTEGER,
                 periodo_inicio DATE,
                 periodo_fin DATE,
-                dias_trabajados REAL DEFAULT 0.0,
+                horas_trabajadas REAL DEFAULT 0.0,
+                horas_extras REAL DEFAULT 0.0,
+                tarifa_hora REAL DEFAULT 0.0,
                 monto_base REAL DEFAULT 0.0,
                 bonos_extras REAL DEFAULT 0.0,
                 descuentos REAL DEFAULT 0.0,
@@ -524,7 +528,9 @@ def init_db():
                 "proyecto_id": "INTEGER",
                 "periodo_inicio": "DATE",
                 "periodo_fin": "DATE",
-                "dias_trabajados": "REAL DEFAULT 0.0",
+                "horas_trabajadas": "REAL DEFAULT 0.0",
+                "horas_extras": "REAL DEFAULT 0.0",
+                "tarifa_hora": "REAL DEFAULT 0.0",
                 "monto_base": "REAL DEFAULT 0.0",
                 "bonos_extras": "REAL DEFAULT 0.0",
                 "descuentos": "REAL DEFAULT 0.0",
@@ -1339,12 +1345,13 @@ elif menu_sel == t["nav_workers"]:
                 ]
 
             st.dataframe(
-                df_mostrar[["id", "nombre_completo", "puesto", "salario_diario", "tipo_pago", "telefono", "proyecto", "estatus", "fecha_registro"]],
+                df_mostrar[["id", "nombre_completo", "puesto", "tarifa_hora", "salario_diario", "tipo_pago", "telefono", "proyecto", "estatus", "fecha_registro"]],
                 column_config={
                     "id": "ID",
                     "nombre_completo": "Trabajador",
                     "puesto": "Puesto / Especialidad",
-                    "salario_diario": st.column_config.NumberColumn("Sueldo Base ($)", format="$%,.2f"),
+                    "tarifa_hora": st.column_config.NumberColumn("Pago por Hora ($/hr)", format="$%,.2f"),
+                    "salario_diario": st.column_config.NumberColumn("Sueldo Diario ($/día)", format="$%,.2f"),
                     "tipo_pago": "Modalidad",
                     "telefono": "Teléfono",
                     "proyecto": "Obra Asignada",
@@ -1354,20 +1361,22 @@ elif menu_sel == t["nav_workers"]:
             )
 
             st.markdown("---")
-            st.subheader("🔄 Reasignar Trabajador o Modificar Sueldo Base")
+            st.subheader("🔄 Reasignar Trabajador o Modificar Tarifas")
 
             with st.form("form_reasignar_trabajador"):
                 trabajador_dict = dict(zip(trabajadores_df["nombre_completo"] + " (" + trabajadores_df["puesto"] + ")", trabajadores_df["id"]))
                 trabajador_sel = st.selectbox("Seleccionar Trabajador", list(trabajador_dict.keys()))
                 trab_row = trabajadores_df[trabajadores_df['id'] == trabajador_dict[trabajador_sel]].iloc[0]
                 
-                c_re1, c_re2, c_re3 = st.columns(3)
+                c_re1, c_re2, c_re3, c_re4 = st.columns(4)
                 with c_re1:
                     nueva_obra_sel = st.selectbox("Nueva Obra Asignada", ["Sin Asignar / Oficina"] + list(proyectos_dict.keys()))
                 with c_re2:
-                    nuevo_sueldo_val = st.number_input("Nuevo Sueldo Base ($)", value=float(trab_row['salario_diario']), step=50.0)
+                    nueva_tarifa_hora = st.number_input("Pago por Hora ($/hr)", min_value=0.0, value=float(trab_row['tarifa_hora']), step=5.0)
                 with c_re3:
-                    nuevo_tipo_pago = st.selectbox("Modalidad de Pago", ["Semanal", "Diario", "Destajo / Proyecto", "Quincenal"], index=0)
+                    nuevo_sueldo_val = st.number_input("Sueldo Diario ($/día)", min_value=0.0, value=float(trab_row['salario_diario']), step=50.0)
+                with c_re4:
+                    nuevo_tipo_pago = st.selectbox("Modalidad de Pago", ["Por Hora", "Semanal", "Diario", "Destajo / Proyecto", "Quincenal"], index=0)
 
                 if st.form_submit_button("Guardar Cambios de Ficha"):
                     trab_id = trabajador_dict[trabajador_sel]
@@ -1375,7 +1384,7 @@ elif menu_sel == t["nav_workers"]:
 
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
-                        c.execute("UPDATE trabajadores SET proyecto_id = ?, salario_diario = ?, tipo_pago = ? WHERE id = ?", (nueva_obra_id, nuevo_sueldo_val, nuevo_tipo_pago, trab_id))
+                        c.execute("UPDATE trabajadores SET proyecto_id = ?, tarifa_hora = ?, salario_diario = ?, tipo_pago = ? WHERE id = ?", (nueva_obra_id, nueva_tarifa_hora, nuevo_sueldo_val, nuevo_tipo_pago, trab_id))
                         conn.commit()
                     clear_data_cache()
                     st.success("Ficha del trabajador actualizada correctamente.")
@@ -1391,8 +1400,9 @@ elif menu_sel == t["nav_workers"]:
                 w_puesto = st.text_input(t["lbl_position"])
                 w_telefono = st.text_input(t["lbl_phone"])
             with c_tw2:
-                w_salario = st.number_input("Sueldo Base ($)", min_value=0.0, value=400.0, step=50.0)
-                w_tipo_pago = st.selectbox("Modalidad de Pago", ["Semanal", "Diario", "Destajo / Proyecto", "Quincenal"])
+                w_tarifa_hora = st.number_input("Pago por Hora ($/hr)", min_value=0.0, value=65.0, step=5.0)
+                w_salario_diario = st.number_input("Salario Diario Referencia ($/día)", min_value=0.0, value=520.0, step=50.0)
+                w_tipo_pago = st.selectbox("Modalidad de Pago", ["Por Hora", "Semanal", "Diario", "Destajo / Proyecto", "Quincenal"])
                 opciones_obra = ["Sin Asignar / Oficina"] + list(proyectos_dict.keys())
                 w_obra = st.selectbox(t["lbl_assign_obra"], opciones_obra)
 
@@ -1403,8 +1413,8 @@ elif menu_sel == t["nav_workers"]:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
-                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id, salario_diario, tipo_pago) VALUES (?, ?, ?, ?, ?, ?)",
-                                (w_nombre, w_puesto, w_telefono, obra_id_val, w_salario, w_tipo_pago),
+                                "INSERT INTO trabajadores (nombre_completo, puesto, telefono, proyecto_id, tarifa_hora, salario_diario, tipo_pago) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (w_nombre, w_puesto, w_telefono, obra_id_val, w_tarifa_hora, w_salario_diario, w_tipo_pago),
                             )
                             conn.commit()
                         clear_data_cache()
@@ -1414,7 +1424,7 @@ elif menu_sel == t["nav_workers"]:
                         st.error(f"Error al guardar trabajador: {e}")
 
 # ==========================================
-# 3.1 CONTROL DE NÓMINA & SUELDOS
+# 3.1 CONTROL DE NÓMINA POR HORA
 # ==========================================
 elif menu_sel == t["nav_payroll"]:
     st.markdown(f"<div class='main-header'>{t['payroll_title']}</div>", unsafe_allow_html=True)
@@ -1449,16 +1459,19 @@ elif menu_sel == t["nav_payroll"]:
             total_pagado_nomina = df_nom_filtrada[df_nom_filtrada['estatus'] == 'Pagado']['monto_neto'].sum()
 
             nk1, nk2 = st.columns(2)
-            nk1.metric("🔴 Saldo Pendiente por Pagar (Adeudo)", f"${total_adeudo_nomina:,.2f}")
-            nk2.metric("🟢 Total Nómina Liquida / Pagada", f"${total_pagado_nomina:,.2f}")
+            nk1.metric("🔴 Saldo Pendiente por Pagar a Trabajadores", f"${total_adeudo_nomina:,.2f}")
+            nk2.metric("🟢 Total Nómina Liquidada / Pagada", f"${total_pagado_nomina:,.2f}")
 
             st.markdown("---")
             st.dataframe(
-                df_nom_filtrada[["id", "trabajador", "puesto", "proyecto", "periodo_inicio", "periodo_fin", "dias_trabajados", "monto_base", "bonos_extras", "descuentos", "monto_neto", "estatus", "fecha_pago"]],
+                df_nom_filtrada[["id", "trabajador", "puesto", "proyecto", "periodo_inicio", "periodo_fin", "horas_trabajadas", "tarifa_hora", "monto_base", "horas_extras", "bonos_extras", "descuentos", "monto_neto", "estatus", "fecha_pago"]],
                 column_config={
                     "id": "ID",
+                    "horas_trabajadas": st.column_config.NumberColumn("Horas Norm.", format="%.1f hrs"),
+                    "tarifa_hora": st.column_config.NumberColumn("Tarifa/Hr", format="$%,.2f"),
                     "monto_base": st.column_config.NumberColumn("Sueldo Base", format="$%,.2f"),
-                    "bonos_extras": st.column_config.NumberColumn("Extras", format="$%,.2f"),
+                    "horas_extras": st.column_config.NumberColumn("Horas Ext.", format="%.1f hrs"),
+                    "bonos_extras": st.column_config.NumberColumn("Extras / $", format="$%,.2f"),
                     "descuentos": st.column_config.NumberColumn("Deducciones", format="$%,.2f"),
                     "monto_neto": st.column_config.NumberColumn("Neto a Pagar", format="$%,.2f"),
                 },
@@ -1466,7 +1479,7 @@ elif menu_sel == t["nav_payroll"]:
             )
 
             st.markdown("---")
-            st.subheader("💸 Liquidar / Liquidar Adeudo de Nómina")
+            st.subheader("💸 Liquidar Adeudo de Nómina a Trabajador")
             pendientes_nom = df_nom_filtrada[df_nom_filtrada['estatus'] == 'Pendiente']
 
             if not pendientes_nom.empty:
@@ -1485,7 +1498,7 @@ elif menu_sel == t["nav_payroll"]:
                                     (
                                         row_nom['proyecto_id'],
                                         "Mano de Obra / Labor",
-                                        f"Pago de Nómina #{nom_id_sel}: {row_nom['trabajador']} ({row_nom['periodo_inicio']} al {row_nom['periodo_fin']})",
+                                        f"Pago Nómina por Horas #{nom_id_sel}: {row_nom['trabajador']} ({row_nom['horas_trabajadas']} hrs normales + {row_nom['horas_extras']} hrs extras)",
                                         row_nom['monto_neto'],
                                         user['nombre'],
                                         f"Pago Nómina Ref #{nom_id_sel}"
@@ -1493,7 +1506,7 @@ elif menu_sel == t["nav_payroll"]:
                                 )
                             conn.commit()
                         clear_data_cache()
-                        st.success("🎉 Pago de nómina registrado y cargado a costos de obra automáticamente.")
+                        st.success("🎉 Pago de nómina registrado correctamente y cargado a costos de obra.")
                         st.rerun()
             else:
                 st.success("🎉 ¡No hay nóminas ni sueldos pendientes por liquidar!")
@@ -1511,35 +1524,45 @@ elif menu_sel == t["nav_payroll"]:
                 trab_id_nom = trab_dict_nom[w_sel_nom]
                 trab_row_nom = trabajadores_df[trabajadores_df['id'] == trab_id_nom].iloc[0]
 
+                st.markdown(f"💡 **Tarifa Base Registrada:** `${trab_row_nom['tarifa_hora']:,.2f} / hr` | **Obra Asignada:** `{trab_row_nom['proyecto']}`")
+
                 c_n1, c_n2 = st.columns(2)
                 with c_n1:
                     p_inicio = st.date_input("Inicio de Periodo", datetime.now())
                     p_fin = st.date_input("Fin de Periodo", datetime.now())
-                    dias_trab = st.number_input("Días Trabajados", min_value=0.5, value=6.0, step=0.5)
+                    horas_trab = st.number_input("Horas Normales Trabajadas", min_value=0.0, value=40.0, step=1.0)
+                    tarifa_hora_val = st.number_input("Tarifa por Hora Normal ($/hr)", min_value=0.0, value=float(trab_row_nom['tarifa_hora'] if trab_row_nom['tarifa_hora'] > 0 else 65.0), step=5.0)
+
                 with c_n2:
-                    sueldo_diario_val = st.number_input("Sueldo Base por Día ($)", value=float(trab_row_nom['salario_diario']), step=50.0)
-                    bonos_val = st.number_input("Bonos / Horas Extras / Destajo ($)", min_value=0.0, value=0.0, step=100.0)
-                    descuentos_val = st.number_input("Descuentos / Anticipos / Deducciones ($)", min_value=0.0, value=0.0, step=50.0)
+                    horas_ext = st.number_input("Horas Extras Trabajadas", min_value=0.0, value=0.0, step=0.5)
+                    tarifa_extra_val = st.number_input("Tarifa por Hora Extra ($/hr)", min_value=0.0, value=float(tarifa_hora_val * 1.5), step=5.0)
+                    descuentos_val = st.number_input("Descuentos / Deducciones / Anticipos ($)", min_value=0.0, value=0.0, step=50.0)
 
-                monto_base_calc = dias_trab * sueldo_diario_val
-                monto_neto_calc = monto_base_calc + bonos_val - descuentos_val
+                monto_base_calc = horas_trab * tarifa_hora_val
+                monto_extras_calc = horas_ext * tarifa_extra_val
+                monto_neto_calc = monto_base_calc + monto_extras_calc - descuentos_val
                 
-                st.markdown(f"### 🧮 Total Calculado a Pagar: **${monto_neto_calc:,.2f}**")
+                st.markdown(
+                    f"### 🧮 Total a Pagar: **${monto_neto_calc:,.2f}** "
+                    f"*(Base: ${monto_base_calc:,.2f} | Extras: ${monto_extras_calc:,.2f} | Deducción: -${descuentos_val:,.2f})*"
+                )
 
-                if st.form_submit_button("💾 Generar Recibo / Pre-Nómina"):
+                if st.form_submit_button("💾 Generar Recibo de Nómina por Horas"):
                     try:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
-                                "INSERT INTO nominas (trabajador_id, proyecto_id, periodo_inicio, periodo_fin, dias_trabajados, monto_base, bonos_extras, descuentos, monto_neto, registrado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                "INSERT INTO nominas (trabajador_id, proyecto_id, periodo_inicio, periodo_fin, horas_trabajadas, horas_extras, tarifa_hora, monto_base, bonos_extras, descuentos, monto_neto, registrado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 (
                                     trab_id_nom,
                                     trab_row_nom['proyecto_id'],
                                     p_inicio,
                                     p_fin,
-                                    dias_trab,
+                                    horas_trab,
+                                    horas_ext,
+                                    tarifa_hora_val,
                                     monto_base_calc,
-                                    bonos_val,
+                                    monto_extras_calc,
                                     descuentos_val,
                                     monto_neto_calc,
                                     user['nombre']
@@ -1547,7 +1570,7 @@ elif menu_sel == t["nav_payroll"]:
                             )
                             conn.commit()
                         clear_data_cache()
-                        st.success("✅ Nómina generada correctamente con estatus Pendiente.")
+                        st.success("✅ Nómina por horas generada correctamente con estatus Pendiente.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al generar nómina: {e}")
