@@ -5,6 +5,10 @@ import secrets
 import sqlite3
 import urllib.parse
 import urllib.request
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from datetime import date, datetime
 
 import numpy as np
@@ -13,6 +17,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
+from fpdf import FPDF
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA
@@ -114,7 +119,147 @@ st.markdown(
 )
 
 # ==========================================
-# DICCIONARIO BILINGÜE COMPLETO (i18n)
+# GENERADOR DE PDFS (FPDF2)
+# ==========================================
+class PDFRecibo(FPDF):
+    def header(self):
+        self.set_font('Helvetica', 'B', 16)
+        self.set_text_color(2, 132, 199)
+        self.cell(0, 10, 'RATTLESNAKE SYSTEM - CONTROL DE OBRA', ln=True, align='C')
+        self.set_font('Helvetica', '', 10)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 5, 'Comprobante Oficial de Pago de Nómina', ln=True, align='C')
+        self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Helvetica', 'I', 8)
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 10, f'Página {self.page_no()}', align='C')
+
+def generar_pdf_recibo_bytes(row):
+    pdf = PDFRecibo()
+    pdf.add_page()
+    pdf.set_font('Helvetica', 'B', 12)
+    pdf.set_text_color(15, 23, 42)
+    
+    pdf.cell(0, 8, f"RECIBO DE NÓMINA REFERENCIA #{row['id']}", ln=True)
+    pdf.ln(2)
+    
+    pdf.set_font('Helvetica', '', 10)
+    pdf.cell(100, 6, f"Trabajador: {row['trabajador']}", ln=False)
+    pdf.cell(0, 6, f"Puesto: {row['puesto']}", ln=True)
+    pdf.cell(100, 6, f"Proyecto / Obra: {row['proyecto']}", ln=False)
+    pdf.cell(0, 6, f"Fecha Emisión: {datetime.now().strftime('%Y-%m-%d')}", ln=True)
+    pdf.cell(100, 6, f"Periodo: {row['periodo_inicio']} al {row['periodo_fin']}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(100, 8, 'Concepto', border=1, fill=True)
+    pdf.cell(45, 8, 'Detalle / Horas', border=1, fill=True)
+    pdf.cell(45, 8, 'Monto ($)', border=1, fill=True, ln=True)
+    
+    pdf.set_font('Helvetica', '', 10)
+    pdf.cell(100, 7, 'Sueldo Horas Normales', border=1)
+    pdf.cell(45, 7, f"{row['horas_trabajadas']} hrs @ ${row['tarifa_hora']:.2f}", border=1)
+    pdf.cell(45, 7, f"${row['monto_base']:,.2f}", border=1, ln=True)
+    
+    pdf.cell(100, 7, 'Horas Extras / Extras', border=1)
+    pdf.cell(45, 7, f"{row['horas_extras']} hrs", border=1)
+    pdf.cell(45, 7, f"${row['bonos_extras']:,.2f}", border=1, ln=True)
+    
+    pdf.cell(100, 7, 'Deducciones / Anticipos', border=1)
+    pdf.cell(45, 7, '-', border=1)
+    pdf.cell(45, 7, f"-${row['descuentos']:,.2f}", border=1, ln=True)
+    
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.cell(145, 8, 'NETO TOTAL A RECIBIR:', border=1)
+    pdf.cell(45, 8, f"${row['monto_neto']:,.2f}", border=1, ln=True)
+    
+    pdf.ln(15)
+    pdf.cell(90, 8, '________________________', align='C', ln=False)
+    pdf.cell(90, 8, '________________________', align='C', ln=True)
+    pdf.cell(90, 5, 'Firma del Trabajador', align='C', ln=False)
+    pdf.cell(90, 5, 'Firma de Conformidad Empresa', align='C', ln=True)
+    
+    return bytes(pdf.output())
+
+def generar_pdf_estimacion_bytes(row):
+    pdf = PDFRecibo()
+    pdf.add_page()
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.set_text_color(15, 23, 42)
+    
+    pdf.cell(0, 8, f"ESTIMACIÓN DE OBRA #{row['numero_estimacion']}", ln=True)
+    pdf.ln(2)
+    
+    pdf.set_font('Helvetica', '', 10)
+    pdf.cell(100, 6, f"Proyecto: {row['proyecto']}", ln=False)
+    pdf.cell(0, 6, f"Cliente: {row['cliente']}", ln=True)
+    pdf.cell(100, 6, f"Fecha Emisión: {row['fecha_emision']}", ln=False)
+    pdf.cell(0, 6, f"Estatus: {row['estatus']}", ln=True)
+    pdf.cell(0, 6, f"Concepto / Periodo: {row['concepto_periodo']}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(120, 8, 'Descripción Financiera', border=1, fill=True)
+    pdf.cell(70, 8, 'Monto ($)', border=1, fill=True, ln=True)
+    
+    pdf.set_font('Helvetica', '', 10)
+    pdf.cell(120, 7, 'Monto Bruto Estimado', border=1)
+    pdf.cell(70, 7, f"${row['monto_estimado']:,.2f}", border=1, ln=True)
+    
+    pdf.cell(120, 7, 'Amortización de Anticipo (-)', border=1)
+    pdf.cell(70, 7, f"-${row['amortizacion_anticipo']:,.2f}", border=1, ln=True)
+    
+    pdf.cell(120, 7, 'Retención Fondo de Garantía (-)', border=1)
+    pdf.cell(70, 7, f"-${row['retencion_garantia']:,.2f}", border=1, ln=True)
+    
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.cell(120, 8, 'TOTAL NETO FACTURABLE / COBRABLE:', border=1)
+    pdf.cell(70, 8, f"${row['monto_neto_cobrar']:,.2f}", border=1, ln=True)
+    
+    pdf.cell(120, 8, 'MONTO COBRADO A LA FECHA:', border=1)
+    pdf.cell(70, 8, f"${row['monto_cobrado']:,.2f}", border=1, ln=True)
+    
+    return bytes(pdf.output())
+
+# ==========================================
+# ENVÍO DE CORREO SMTP
+# ==========================================
+def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archivo):
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASS", "")
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    
+    if not smtp_user or not smtp_pass:
+        return False, "⚠️ No se configuraron las credenciales SMTP en las variables de entorno."
+        
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo, 'plain'))
+        
+        part = MIMEApplication(pdf_bytes, Name=nombre_archivo)
+        part['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        msg.attach(part)
+        
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, destinatario, msg.as_string())
+        server.quit()
+        return True, "✅ Correo enviado con éxito."
+    except Exception as e:
+        return False, f"❌ Error enviando correo: {e}"
+
+# ==========================================
+# DICCIONARIO BILINGÜE Y SISTEMA SAFE-DICT
 # ==========================================
 TEXTS = {
     "ES": {
@@ -179,6 +324,9 @@ TEXTS = {
         "msg_obra_success": "Obra guardada exitosamente.",
         "obras_filter_status": "Filtrar por Estatus:",
         "obras_search": "🔎 Buscar Obra por Nombre, Cliente o Código:",
+        "obras_edit_title": "✏️ Editor Directo de Obras & Avance Físico",
+        "obras_edit_save": "Guardar Cambios",
+        "obras_edit_success": "✅ ¡Obras actualizadas correctamente!",
         # Personal & Nómina
         "workers_title": "👷 Gestión Integrada de Personal & Nómina por Horas",
         "tab_workers_list": "📌 Directorio de Personal & Edición",
@@ -193,6 +341,12 @@ TEXTS = {
         "workers_hourly_rate": "Pago por Hora ($/hr)",
         "workers_daily_wage": "Salario Diario ($/día)",
         "workers_pay_mode": "Modalidad de Pago",
+        "workers_filter_site": "Filtrar por Obra:",
+        "workers_filter_status": "Estatus del Trabajador:",
+        "workers_search": "🔎 Buscar Trabajador o Puesto:",
+        "workers_save_changes": "Guardar Cambios de Ficha",
+        "workers_updated_msg": "Ficha del trabajador actualizada correctamente.",
+        "workers_select": "Seleccionar Trabajador",
         "payroll_kpi_pending": "🔴 Adeudo Pendiente de Nómina",
         "payroll_kpi_paid": "🟢 Nómina Total Liquidada",
         "payroll_pay_title": "💸 Liquidar Adeudo de Nómina a Trabajador",
@@ -241,6 +395,9 @@ TEXTS = {
         "btn_save_costo": "Registrar Costo Directo",
         "msg_costo_success": "Costo registrado y reflejado en balance.",
         "costos_history": "Historial de Costos Integrados",
+        "costos_categories_filter": "Categorías:",
+        "costos_search": "🔎 Buscar Concepto / Usuario:",
+        "costos_deleted_msg": "Registros de costos actualizados.",
         # CxP
         "cxp_title": "💳 Cuentas por Pagar (CxP)",
         "tab_active_cxp": "📌 Cuentas Pendientes",
@@ -263,6 +420,7 @@ TEXTS = {
         "lbl_priority": "Prioridad",
         "btn_send_req": "Enviar Requisición",
         "msg_req_success": "Requisición enviada con éxito.",
+        "req_status_success": "Estatus de la requisición actualizado.",
         # Usuarios
         "users_title": "👑 Control de Usuarios Maestros",
         "lbl_new_username": "Nombre de Usuario (Login)",
@@ -271,6 +429,9 @@ TEXTS = {
         "btn_create_user": "Dar de Alta Usuario Maestro",
         "msg_user_success": "Usuario Maestro creado con éxito.",
         "users_list": "Usuarios Registrados en el Sistema",
+        "users_del_title": "Eliminar Usuario Maestro",
+        "users_del_select": "Selecciona el Usuario a eliminar",
+        "users_del_btn": "Eliminar Usuario",
     },
     "EN": {
         "app_title": "Rattlesnake System",
@@ -334,6 +495,9 @@ TEXTS = {
         "msg_obra_success": "Project saved successfully.",
         "obras_filter_status": "Filter by Status:",
         "obras_search": "🔎 Search Project by Name, Client or Code:",
+        "obras_edit_title": "✏️ Interactive Project & Progress Editor",
+        "obras_edit_save": "Save Changes",
+        "obras_edit_success": "✅ Projects updated successfully!",
         # Personal & Nómina
         "workers_title": "👷 Integrated Staff & Hourly Payroll Management",
         "tab_workers_list": "📌 Staff Directory & Editor",
@@ -348,6 +512,12 @@ TEXTS = {
         "workers_hourly_rate": "Hourly Rate ($/hr)",
         "workers_daily_wage": "Daily Wage ($/day)",
         "workers_pay_mode": "Payment Mode",
+        "workers_filter_site": "Filter by Project:",
+        "workers_filter_status": "Worker Status:",
+        "workers_search": "🔎 Search Worker or Position:",
+        "workers_save_changes": "Save Record Changes",
+        "workers_updated_msg": "Worker record updated successfully.",
+        "workers_select": "Select Worker",
         "payroll_kpi_pending": "🔴 Outstanding Wages Due",
         "payroll_kpi_paid": "🟢 Total Settled Payroll",
         "payroll_pay_title": "💸 Settle Worker Payroll Dues",
@@ -366,7 +536,7 @@ TEXTS = {
         "payroll_gen_submit": "💾 Generate Payroll Stub",
         "payroll_gen_success": "✅ Payroll stub generated (recorded under liabilities).",
         # Estimaciones
-        "estimates_title": "📐 Site Progress Estimates & Client Invoicing",
+        "estimates_title": "📐 Project Progress Estimates & Client Invoicing",
         "tab_active_estimates": "📌 Estimates & Collections",
         "tab_new_estimate": "➕ Issue New Estimate",
         "estimates_kpi_net": "📐 Total Net Billed",
@@ -396,6 +566,9 @@ TEXTS = {
         "btn_save_costo": "Register Direct Expense",
         "msg_costo_success": "Expense registered and updated on balance.",
         "costos_history": "Integrated Expense Log",
+        "costos_categories_filter": "Categories:",
+        "costos_search": "🔎 Search Concept / User:",
+        "costos_deleted_msg": "Cost entries updated.",
         # CxP
         "cxp_title": "💳 Accounts Payable (AP)",
         "tab_active_cxp": "📌 Pending Accounts",
@@ -418,6 +591,7 @@ TEXTS = {
         "lbl_priority": "Priority Level",
         "btn_send_req": "Submit Requisition",
         "msg_req_success": "Requisition submitted successfully.",
+        "req_status_success": "Requisition status updated.",
         # Usuarios
         "users_title": "👑 Master User Access Control",
         "lbl_new_username": "Username",
@@ -426,8 +600,22 @@ TEXTS = {
         "btn_create_user": "Register Master User",
         "msg_user_success": "Master User registered successfully.",
         "users_list": "Registered System Users",
+        "users_del_title": "Delete Master User",
+        "users_del_select": "Select User to delete",
+        "users_del_btn": "Delete User",
     },
 }
+
+class SafeDict:
+    def __init__(self, lang):
+        self.lang = lang
+    def __getitem__(self, key):
+        lang_dict = TEXTS.get(self.lang, TEXTS["ES"])
+        if key in lang_dict:
+            return lang_dict[key]
+        if key in TEXTS["ES"]:
+            return TEXTS["ES"][key]
+        return key
 
 # ==========================================
 # GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
@@ -757,11 +945,11 @@ def get_nominas_df(proyecto_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         if proyecto_id:
             return pd.read_sql_query(
-                "SELECT n.*, t.nombre_completo as trabajador, t.puesto, p.nombre as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id WHERE n.proyecto_id = ? ORDER BY n.id DESC",
+                "SELECT n.*, t.nombre_completo as trabajador, t.puesto, t.telefono, p.nombre as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id WHERE n.proyecto_id = ? ORDER BY n.id DESC",
                 conn, params=(proyecto_id,)
             )
         return pd.read_sql_query(
-            "SELECT n.*, t.nombre_completo as trabajador, t.puesto, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id ORDER BY n.id DESC",
+            "SELECT n.*, t.nombre_completo as trabajador, t.puesto, t.telefono, coalesce(p.nombre, 'Sin Asignar / Oficina') as proyecto FROM nominas n JOIN trabajadores t ON n.trabajador_id = t.id LEFT JOIN proyectos p ON n.proyecto_id = p.id ORDER BY n.id DESC",
             conn,
         )
 
@@ -835,7 +1023,7 @@ if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["user_info"] = None
 
-t = TEXTS[st.session_state["lang"]]
+t = SafeDict(st.session_state["lang"])
 
 # ==========================================
 # PANTALLA DE LOGIN
@@ -1076,7 +1264,6 @@ elif menu_sel == t["nav_balance"]:
         presupuesto_total = proyectos_df["presupuesto_total"].sum()
         costo_total_ejecutado = costos_df["monto"].sum() if not costos_df.empty else 0
         
-        # CxP pendientes + Nóminas pendientes de pago
         cxp_pendientes_val = (cxp_df["monto_total"] - cxp_df["monto_pagado"]).sum() if not cxp_df.empty else 0
         nominas_pendientes_val = nominas_df[nominas_df['estatus'] == 'Pendiente']['monto_neto'].sum() if not nominas_df.empty else 0
         
@@ -1209,8 +1396,7 @@ elif menu_sel == t["nav_obras"]:
                 )
 
             st.markdown("---")
-            st.markdown("### 📝 Editor Directo de Obras & Avance Físico")
-            st.caption("💡 Modifica nombres, presupuestos, metas o avances directamente en la tabla y presiona 'Guardar Cambios'.")
+            st.markdown("### 📝 " + t["obras_edit_title"])
             
             edited_obras = st.data_editor(
                 df_obras[["id", "codigo", "nombre", "cliente", "presupuesto_total", "avance_meta", "avance_real", "estado", "calle", "ciudad"]],
@@ -1230,7 +1416,6 @@ elif menu_sel == t["nav_obras"]:
             if st.button("💾 " + t["obras_edit_save"]):
                 with sqlite3.connect(DB_PATH) as conn:
                     c = conn.cursor()
-                    # Borrado de eliminados
                     ids_actuales = edited_obras['id'].dropna().tolist() if 'id' in edited_obras.columns else []
                     ids_originales = df_obras['id'].tolist()
                     ids_a_borrar = set(ids_originales) - set(ids_actuales)
@@ -1244,7 +1429,6 @@ elif menu_sel == t["nav_obras"]:
                         c.execute("DELETE FROM nominas WHERE proyecto_id = ?", (id_b,))
                         c.execute("DELETE FROM proyectos WHERE id = ?", (id_b,))
 
-                    # Actualización de datos
                     for _, row in edited_obras.iterrows():
                         if pd.notna(row['id']):
                             c.execute(
@@ -1253,7 +1437,7 @@ elif menu_sel == t["nav_obras"]:
                             )
                     conn.commit()
                 clear_data_cache()
-                st.success("✅ ¡Obras actualizadas correctamente!")
+                st.success(t["obras_edit_success"])
                 st.rerun()
 
         else:
@@ -1315,7 +1499,7 @@ elif menu_sel == t["nav_obras"]:
                         st.error(f"Error: {e}")
 
 # ==========================================
-# 3. PERSONAL & NÓMINA INTEGRADA
+# 3. PERSONAL & NÓMINA INTEGRADA (CON EXPORTACIÓN)
 # ==========================================
 elif menu_sel == t["nav_workers"]:
     st.markdown(f"<div class='main-header'>{t['workers_title']}</div>", unsafe_allow_html=True)
@@ -1356,9 +1540,7 @@ elif menu_sel == t["nav_workers"]:
                     df_mostrar["puesto"].str.lower().str.contains(term_w)
                 ]
 
-            st.markdown("### 📝 Editor Directo de Fichas de Trabajadores")
-            st.caption("💡 Modifica tarifas por hora, puesto o elimina registros eliminando filas en la tabla.")
-
+            st.markdown("### 📝 Editor Directo de Personal")
             edited_workers = st.data_editor(
                 df_mostrar[["id", "nombre_completo", "puesto", "tarifa_hora", "salario_diario", "tipo_pago", "telefono", "estatus"]],
                 column_config={
@@ -1399,7 +1581,7 @@ elif menu_sel == t["nav_workers"]:
         else:
             st.info("No hay trabajadores registrados en la base de datos.")
 
-    # --- PESTAÑA 2: CONTROL DE NÓMINA ---
+    # --- PESTAÑA 2: CONTROL DE NÓMINA & EXPORTACIÓN ---
     with tab2:
         st.subheader(t["payroll_title"])
         
@@ -1416,7 +1598,7 @@ elif menu_sel == t["nav_workers"]:
                     trab_id_nom = trab_dict_nom[w_sel_nom]
                     trab_row_nom = trabajadores_df[trabajadores_df['id'] == trab_id_nom].iloc[0]
 
-                    st.info(f"💡 **Tarifa Base Registrada:** `${trab_row_nom['tarifa_hora']:,.2f} / hr` | **Obra Asignada:** `{trab_row_nom['proyecto']}`")
+                    st.info(f"💡 **Tarifa Base:** `${trab_row_nom['tarifa_hora']:,.2f} / hr` | **Obra:** `{trab_row_nom['proyecto']}`")
 
                     c_n1, c_n2 = st.columns(2)
                     with c_n1:
@@ -1493,12 +1675,26 @@ elif menu_sel == t["nav_workers"]:
                     st.success(t["payroll_no_pending"])
 
                 st.markdown("---")
-                st.markdown("##### 📜 Historial de Nóminas")
-                st.dataframe(
-                    df_nom_filtrada[["id", "trabajador", "proyecto", "horas_trabajadas", "monto_neto", "estatus"]],
-                    column_config={"monto_neto": st.column_config.NumberColumn("Neto ($)", format="$%,.2f")},
-                    use_container_width=True
-                )
+                st.markdown("##### 📄 Exportar Recibo PDF / Enviar por WhatsApp")
+                nom_pdf_sel = st.selectbox("Selecciona Recibo de Nómina", nominas_df['id'].tolist())
+                row_pdf_nom = nominas_df[nominas_df['id'] == nom_pdf_sel].iloc[0]
+                
+                pdf_bytes_nom = generar_pdf_recibo_bytes(row_pdf_nom)
+                
+                c_e1, c_e2 = st.columns(2)
+                with c_e1:
+                    st.download_button(
+                        label="📄 Descargar Recibo PDF",
+                        data=pdf_bytes_nom,
+                        file_name=f"Recibo_Nomina_{row_pdf_nom['trabajador']}_{row_pdf_nom['id']}.pdf",
+                        mime="application/pdf"
+                    )
+                with c_e2:
+                    msg_wa = urllib.parse.quote(f"Hola {row_pdf_nom['trabajador']}, tu recibo de nómina ID #{row_pdf_nom['id']} por un monto de ${row_pdf_nom['monto_neto']:,.2f} ha sido procesado.")
+                    tel_clean = str(row_pdf_nom['telefono']).replace(" ", "").replace("-", "") if pd.notna(row_pdf_nom['telefono']) else ""
+                    wa_url = f"https://api.whatsapp.com/send?phone={tel_clean}&text={msg_wa}"
+                    st.markdown(f"[📱 Enviar por WhatsApp]({wa_url})", unsafe_allow_html=True)
+
             else:
                 st.info("No hay registros de nómina.")
 
@@ -1535,7 +1731,7 @@ elif menu_sel == t["nav_workers"]:
                         st.error(f"Error: {e}")
 
 # ==========================================
-# 4. ESTIMACIONES & CLIENTES
+# 4. ESTIMACIONES & CLIENTES (CON PDF & CORREO)
 # ==========================================
 elif menu_sel == t["nav_estimates"]:
     st.markdown(f"<div class='main-header'>{t['estimates_title']}</div>", unsafe_allow_html=True)
@@ -1600,6 +1796,35 @@ elif menu_sel == t["nav_estimates"]:
                     clear_data_cache()
                     st.success("✅ ¡Estimaciones actualizadas correctamente!")
                     st.rerun()
+
+                st.markdown("---")
+                st.markdown("##### 📄 Exportar Estimación PDF / Enviar por Correo a Cliente")
+                est_pdf_sel = st.selectbox("Selecciona Estimación", estimaciones_df['id'].tolist())
+                row_pdf_est = estimaciones_df[estimaciones_df['id'] == est_pdf_sel].iloc[0]
+                
+                pdf_bytes_est = generar_pdf_estimacion_bytes(row_pdf_est)
+                
+                ce_1, ce_2 = st.columns(2)
+                with ce_1:
+                    st.download_button(
+                        label="📄 Descargar Estimación PDF",
+                        data=pdf_bytes_est,
+                        file_name=f"Estimacion_No{row_pdf_est['numero_estimacion']}_{row_pdf_est['proyecto']}.pdf",
+                        mime="application/pdf"
+                    )
+                with ce_2:
+                    email_dest = st.text_input("Correo del Cliente:", value="")
+                    if st.button("📧 Enviar PDF por Correo"):
+                        if email_dest:
+                            asunto_mail = f"Estimación #{row_pdf_est['numero_estimacion']} - {row_pdf_est['proyecto']}"
+                            cuerpo_mail = f"Estimado cliente {row_pdf_est['cliente']},\n\nAdjunto encontrará la estimación de obra #{row_pdf_est['numero_estimacion']} correspondiente a {row_pdf_est['concepto_periodo']} por un total neto de ${row_pdf_est['monto_neto_cobrar']:,.2f}.\n\nSaludos cordiales,\nRattlesnake System."
+                            exito, msg_mail = enviar_correo_con_pdf(email_dest, asunto_mail, cuerpo_mail, pdf_bytes_est, f"Estimacion_{row_pdf_est['numero_estimacion']}.pdf")
+                            if exito:
+                                st.success(msg_mail)
+                            else:
+                                st.warning(msg_mail)
+                        else:
+                            st.warning("Escribe el correo del cliente.")
 
                 st.markdown("---")
                 st.subheader(t["estimates_pay_title"])
@@ -1995,14 +2220,14 @@ elif menu_sel == t["nav_users"]:
                 user_del_sel = st.selectbox(t["users_del_select"], user_del_list, key="del_user_sb")
                 if st.button(t["users_del_btn"], key="del_user_btn"):
                     if user_del_sel == user['username']:
-                        st.error(t["users_del_self_err"])
+                        st.error("No puedes eliminar tu propio usuario en sesión.")
                     else:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute("DELETE FROM usuarios WHERE username = ?", (user_del_sel,))
                             conn.commit()
                         clear_data_cache()
-                        st.success(t["users_del_success"])
+                        st.success("Usuario eliminado.")
                         st.rerun()
             else:
-                st.info(t["users_del_no_users"])
+                st.info("No hay usuarios adicionales para eliminar.")
