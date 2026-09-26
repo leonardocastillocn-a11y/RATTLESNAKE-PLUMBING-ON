@@ -5,11 +5,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sqlite3
 import hashlib
+import secrets
 import os
 from datetime import datetime
 
 # ==========================================
-# CONFIGURACIÓN PÁGINA
+# CONFIGURACIÓN DE PÁGINA
 # ==========================================
 st.set_page_config(
     page_title="Rattlesnake System",
@@ -31,13 +32,11 @@ st.markdown("""
             font-family: 'Inter', sans-serif;
         }
         
-        /* Fondo Principal Claro */
         .stApp {
             background-color: #F8FAFC;
             color: #0F172A;
         }
         
-        /* Sidebar - Fondo e Interfaz Clara */
         section[data-testid="stSidebar"] {
             background-color: #FFFFFF !important;
             border-right: 1px solid #E2E8F0;
@@ -56,7 +55,6 @@ st.markdown("""
             background-color: #F1F5F9 !important;
         }
         
-        /* Encabezados y Títulos */
         .main-header {
             font-size: 28px;
             font-weight: 800;
@@ -72,7 +70,6 @@ st.markdown("""
             margin-bottom: 0px;
         }
 
-        /* Target / KPI Cards */
         .kpi-card {
             background-color: #FFFFFF;
             border: 1px solid #E2E8F0;
@@ -81,19 +78,7 @@ st.markdown("""
             text-align: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .kpi-card h4 {
-            color: #64748B;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-        .kpi-card p {
-            color: #0284C7;
-            font-size: 24px;
-            font-weight: 700;
-            margin: 0;
-        }
         
-        /* Estilos de Botones */
         .stButton>button {
             border-radius: 8px;
             font-weight: 600;
@@ -109,7 +94,6 @@ st.markdown("""
             box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
         }
         
-        /* Métricas Streamlit */
         div[data-testid="stMetricValue"] {
             font-size: 26px !important;
             font-weight: 700 !important;
@@ -144,16 +128,14 @@ TEXTS = {
         "nav_users": "👑 Usuarios Maestros",
         "btn_logout": "Cerrar Sesión",
         "lang_selector": "🌐 Idioma / Language",
-        # Director
         "dir_title": "🎯 Tablero Operativo Directivo - Resumen Ejecutivo",
         "dir_kpi_total_proj": "Proyectos Activos",
         "dir_kpi_goal_prog": "Meta Avance Físico Promedio",
         "dir_kpi_real_prog": "Avance Físico Real Promedio",
         "dir_kpi_efficiency": "Eficiencia Presupuestal Global",
         "dir_status_summary": "Estatus Operativo de Proyectos",
-        "dir_scurve_title": "Curva S de Avance Programado vs Real (Global)",
+        "dir_scurve_title": "Curva S Acumulada de Ejecución Financiera",
         "dir_alerts_title": "⚠️ Alerta de Desvíos Presupuestales u Operativos",
-        # Balance
         "bal_title": "📊 Dashboard Financiero & Rendimiento de Obra",
         "metric_budget": "Presupuesto Contratado",
         "metric_executed": "Costo Real Ejecutado",
@@ -161,7 +143,6 @@ TEXTS = {
         "metric_available": "Margen / Disponible",
         "chart_cat": "Desglose de Costos por Categoría",
         "chart_comp": "Presupuesto vs Costo Real por Proyecto",
-        # Obras
         "obras_title": "🏗️ Gestión de Obras & Coordenadas GPS",
         "tab_map": "🗺️ Mapa & Listado de Obras",
         "tab_new_obra": "➕ Registrar Nueva Obra",
@@ -175,7 +156,6 @@ TEXTS = {
         "lbl_lon": "Longitud GPS",
         "btn_save_obra": "Guardar Proyecto",
         "msg_obra_success": "Obra guardada exitosamente.",
-        # Costos
         "costos_title": "💰 Captura & Control Metódico de Costos",
         "lbl_select_obra": "Seleccionar Obra",
         "lbl_cat": "Categoría de Costo",
@@ -186,7 +166,6 @@ TEXTS = {
         "btn_save_costo": "Registrar Costo",
         "msg_costo_success": "Costo registrado exitosamente.",
         "costos_history": "Historial de Costos Registrados",
-        # CxP
         "cxp_title": "💳 Cuentas por Pagar & Compromisos Financieros",
         "tab_active_cxp": "📌 Cuentas Pendientes",
         "tab_new_cxp": "➕ Nueva Cuenta por Pagar",
@@ -197,8 +176,7 @@ TEXTS = {
         "btn_pay": "Aplicar Pago / Abono",
         "lbl_cxp_id": "ID Cuenta por Pagar",
         "lbl_pay_amount": "Monto a Abonar ($)",
-        "msg_pay_success": "Abono/Pago aplicado correctamente.",
-        # Requisiciones
+        "msg_pay_success": "Abono/Pago aplicado correctamente y reflejado en costos.",
         "req_title": "📋 Requisiciones de Insumos & Materiales de Campo",
         "tab_active_req": "📌 Requisiciones Solicitadas",
         "tab_new_req": "➕ Nueva Requisición",
@@ -208,7 +186,6 @@ TEXTS = {
         "lbl_priority": "Prioridad",
         "btn_send_req": "Enviar Requisición",
         "msg_req_success": "Requisición enviada con éxito.",
-        # Usuarios
         "users_title": "👑 Control & Alta de Usuarios Maestros",
         "lbl_new_username": "Nombre de Usuario (Login)",
         "lbl_new_password": "Contraseña",
@@ -236,16 +213,14 @@ TEXTS = {
         "nav_users": "👑 Master Users",
         "btn_logout": "Sign Out",
         "lang_selector": "🌐 Language / Idioma",
-        # Director
         "dir_title": "🎯 Director Operational Dashboard - Executive Overview",
         "dir_kpi_total_proj": "Active Projects",
         "dir_kpi_goal_prog": "Target Physical Progress Avg",
         "dir_kpi_real_prog": "Actual Physical Progress Avg",
         "dir_kpi_efficiency": "Overall Budget Efficiency",
         "dir_status_summary": "Project Operational Status",
-        "dir_scurve_title": "S-Curve Planned vs Actual Progress (Global)",
+        "dir_scurve_title": "S-Curve Cumulative Financial Execution",
         "dir_alerts_title": "⚠️ Budget & Operational Variance Alerts",
-        # Balance
         "bal_title": "📊 Financial Dashboard & Site Performance",
         "metric_budget": "Contracted Budget",
         "metric_executed": "Actual Cost Executed",
@@ -253,7 +228,6 @@ TEXTS = {
         "metric_available": "Margin / Available",
         "chart_cat": "Cost Breakdown by Category",
         "chart_comp": "Budget vs Actual Cost per Project",
-        # Obras
         "obras_title": "🏗️ Project Management & GPS Coordinates",
         "tab_map": "MAP & Project List",
         "tab_new_obra": "➕ Register New Project",
@@ -267,7 +241,6 @@ TEXTS = {
         "lbl_lon": "GPS Longitude",
         "btn_save_obra": "Save Project",
         "msg_obra_success": "Project saved successfully.",
-        # Costos
         "costos_title": "💰 Systematic Cost Tracking",
         "lbl_select_obra": "Select Project",
         "lbl_cat": "Cost Category",
@@ -278,7 +251,6 @@ TEXTS = {
         "btn_save_costo": "Register Expense",
         "msg_costo_success": "Expense registered successfully.",
         "costos_history": "Expense Log History",
-        # CxP
         "cxp_title": "💳 Accounts Payable & Financial Commitments",
         "tab_active_cxp": "📌 Pending Accounts",
         "tab_new_cxp": "➕ New Payable Account",
@@ -289,8 +261,7 @@ TEXTS = {
         "btn_pay": "Apply Payment / Partial",
         "lbl_cxp_id": "AP Account ID",
         "lbl_pay_amount": "Amount to Pay ($)",
-        "msg_pay_success": "Payment applied successfully.",
-        # Requisiciones
+        "msg_pay_success": "Payment applied successfully and recorded under expenses.",
         "req_title": "📋 Field Materials & Supply Requisitions",
         "tab_active_req": "📌 Active Requisitions",
         "tab_new_req": "➕ New Requisition",
@@ -300,7 +271,6 @@ TEXTS = {
         "lbl_priority": "Priority Level",
         "btn_send_req": "Submit Requisition",
         "msg_req_success": "Requisition submitted successfully.",
-        # Usuarios
         "users_title": "👑 Master User Access Control",
         "lbl_new_username": "Username",
         "lbl_new_password": "Password",
@@ -312,13 +282,22 @@ TEXTS = {
 }
 
 # ==========================================
-# BASE DE DATOS & SEGURIDAD
+# BASE DE DATOS & SEGURIDAD (PBKDF2)
 # ==========================================
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
+def make_hashes(password, salt=None):
+    if not salt:
+        salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return f"{salt}${key.hex()}"
 
 def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
+    try:
+        if '$' not in hashed_text:
+            return hashlib.sha256(password.encode()).hexdigest() == hashed_text
+        salt, _ = hashed_text.split('$')
+        return make_hashes(password, salt) == hashed_text
+    except Exception:
+        return False
 
 def init_db():
     os.makedirs("database", exist_ok=True)
@@ -413,6 +392,43 @@ def init_db():
 init_db()
 
 # ==========================================
+# FUNCIONES CON CACHÉ DE BASE DE DATOS
+# ==========================================
+@st.cache_data(ttl=60)
+def get_proyectos_df():
+    with sqlite3.connect(DB_PATH) as conn:
+        return pd.read_sql_query("SELECT * FROM proyectos ORDER BY id DESC", conn)
+
+@st.cache_data(ttl=60)
+def get_costos_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id WHERE c.proyecto_id = ? ORDER BY c.id DESC", conn, params=(proyecto_id,))
+        return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id ORDER BY c.id DESC", conn)
+
+@st.cache_data(ttl=60)
+def get_cxp_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id WHERE cxp.proyecto_id = ? ORDER BY cxp.id DESC", conn, params=(proyecto_id,))
+        return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id ORDER BY cxp.id DESC", conn)
+
+@st.cache_data(ttl=60)
+def get_requisiciones_df(proyecto_id=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        if proyecto_id:
+            return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id WHERE r.proyecto_id = ? ORDER BY r.id DESC", conn, params=(proyecto_id,))
+        return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id ORDER BY r.id DESC", conn)
+
+@st.cache_data(ttl=60)
+def get_usuarios_df():
+    with sqlite3.connect(DB_PATH) as conn:
+        return pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios ORDER BY id DESC", conn)
+
+def clear_data_cache():
+    st.cache_data.clear()
+
+# ==========================================
 # MANEJO DE SESIÓN
 # ==========================================
 if 'lang' not in st.session_state:
@@ -487,41 +503,12 @@ if new_lang != st.session_state['lang']:
     st.session_state['lang'] = new_lang
     st.rerun()
 
-st.sidebar.markdown(f"👤 **{user['nombre']}**  \n<small style='color:#64748B;'>👑 {user['rol']}</small>", unsafe_allow_html=True)
+st.sidebar.markdown(f"👤 **{user['nombre']}** \n<small style='color:#64748B;'>👑 {user['rol']}</small>", unsafe_allow_html=True)
 
 if st.sidebar.button(t["btn_logout"], use_container_width=True):
     st.session_state['logged_in'] = False
     st.session_state['user_info'] = None
     st.rerun()
-
-# ==========================================
-# FUNCIONES DE CONSULTA A BD
-# ==========================================
-def get_proyectos_df():
-    with sqlite3.connect(DB_PATH) as conn:
-        return pd.read_sql_query("SELECT * FROM proyectos ORDER BY id DESC", conn)
-
-def get_costos_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id WHERE c.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT c.*, p.nombre as proyecto FROM costos c JOIN proyectos p ON c.proyecto_id = p.id ORDER BY c.id DESC", conn)
-
-def get_cxp_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id WHERE cxp.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT cxp.*, p.nombre as proyecto FROM cuentas_por_pagar cxp JOIN proyectos p ON cxp.proyecto_id = p.id ORDER BY cxp.id DESC", conn)
-
-def get_requisiciones_df(proyecto_id=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        if proyecto_id:
-            return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id WHERE r.proyecto_id = ?", conn, params=(proyecto_id,))
-        return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id ORDER BY r.id DESC", conn)
-
-def get_usuarios_df():
-    with sqlite3.connect(DB_PATH) as conn:
-        return pd.read_sql_query("SELECT id, username, nombre_completo, rol FROM usuarios ORDER BY id DESC", conn)
 
 # ==========================================
 # 0. TABLERO OPERATIVO DIRECTOR
@@ -556,24 +543,33 @@ if menu_sel == t["nav_director"]:
 
         with col_dir1:
             st.subheader(t["dir_scurve_title"])
-            meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct"]
-            plan_acum = [5, 12, 25, 40, 58, 72, 85, 92, 97, 100]
             
-            factor_real = (real_promedio / 100) if real_promedio > 0 else 0.1
-            real_acum = [min(100, int(val * (factor_real * 1.1))) for val in plan_acum[:6]]
-            
-            fig_curva = go.Figure()
-            fig_curva.add_trace(go.Scatter(x=meses, y=plan_acum, mode='lines+markers', name='Planificado (Meta %)', line=dict(color='#0284C7', width=3)))
-            fig_curva.add_trace(go.Scatter(x=meses[:len(real_acum)], y=real_acum, mode='lines+markers', name='Ejecutado (Real %)', line=dict(color='#10B981', width=3, dash='dash')))
-            fig_curva.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                font_color='#0F172A',
-                yaxis=dict(title="% Avance Acumulado", range=[0, 105], gridcolor='#E2E8F0'),
-                xaxis=dict(gridcolor='#E2E8F0'),
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_curva, use_container_width=True)
+            if not costos_df.empty:
+                costos_df['fecha_dt'] = pd.to_datetime(costos_df['fecha'])
+                costos_df['periodo'] = costos_df['fecha_dt'].dt.to_period('M').astype(str)
+                df_acum = costos_df.groupby('periodo')['monto'].sum().reset_index()
+                df_acum['acumulado'] = df_acum['monto'].cumsum()
+                df_acum['pct_ejecutado'] = (df_acum['acumulado'] / presupuesto_global * 100) if presupuesto_global > 0 else 0
+                
+                fig_curva = go.Figure()
+                fig_curva.add_trace(go.Scatter(
+                    x=df_acum['periodo'], 
+                    y=df_acum['pct_ejecutado'], 
+                    mode='lines+markers', 
+                    name='Gasto Real Acumulado (%)', 
+                    line=dict(color='#0284C7', width=3)
+                ))
+                fig_curva.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)', 
+                    font_color='#0F172A',
+                    yaxis=dict(title="% Presupuesto Ejecutado", range=[0, max(105, df_acum['pct_ejecutado'].max() + 5)], gridcolor='#E2E8F0'),
+                    xaxis=dict(gridcolor='#E2E8F0'),
+                    margin=dict(l=20, r=20, t=30, b=20)
+                )
+                st.plotly_chart(fig_curva, use_container_width=True)
+            else:
+                st.info("Sin suficientes datos historicos de costos para generar la curva acumulada.")
 
         with col_dir2:
             st.subheader(t["dir_status_summary"])
@@ -720,6 +716,7 @@ elif menu_sel == t["nav_obras"]:
                                 (codigo, nombre, cliente, presupuesto, avance_meta, avance_real, latitud, longitud)
                             )
                             conn.commit()
+                        clear_data_cache()
                         st.success(t["msg_obra_success"])
                         st.rerun()
                     except Exception as e:
@@ -764,6 +761,7 @@ elif menu_sel == t["nav_costos"]:
                                 (obra_id, categoria, concepto, monto, fecha_costo, user['nombre'], observaciones)
                             )
                             conn.commit()
+                        clear_data_cache()
                         st.success(t["msg_costo_success"])
                         st.rerun()
 
@@ -826,7 +824,12 @@ elif menu_sel == t["nav_cxp"]:
                                     "UPDATE cuentas_por_pagar SET monto_pagado = ?, estatus = ? WHERE id = ?",
                                     (nuevo_pagado, nuevo_estatus, cxp_id_sel)
                                 )
+                                c.execute(
+                                    "INSERT INTO costos (proyecto_id, categoria, concepto, monto, fecha, registrado_por, observaciones) VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)",
+                                    (row['proyecto_id'], "Subcontratos / Subcontracts", f"Pago CxP #{cxp_id_sel}: {row['proveedor']} - {row['concepto']}", monto_abono, user['nombre'], f"Abono CxP Ref {cxp_id_sel}")
+                                )
                                 conn.commit()
+                            clear_data_cache()
                             st.success(t["msg_pay_success"])
                             st.rerun()
                 else:
@@ -851,6 +854,7 @@ elif menu_sel == t["nav_cxp"]:
                                 (proyectos_dict[obra_cxp], proveedor, concepto_cxp, monto_total, fecha_venc, user['nombre'])
                             )
                             conn.commit()
+                        clear_data_cache()
                         st.success(t["msg_cxp_success"])
                         st.rerun()
 
@@ -898,6 +902,7 @@ elif menu_sel == t["nav_req"]:
                                 (proyectos_dict[obra_req], insumo, cantidad, unidad, prioridad, user['nombre'])
                             )
                             conn.commit()
+                        clear_data_cache()
                         st.success(t["msg_req_success"])
                         st.rerun()
 
@@ -925,6 +930,7 @@ elif menu_sel == t["nav_users"]:
                                 (new_username, make_hashes(new_password), fullname, "Usuario Maestro")
                             )
                             conn.commit()
+                        clear_data_cache()
                         st.success(t["msg_user_success"])
                         st.rerun()
                     except sqlite3.IntegrityError:
