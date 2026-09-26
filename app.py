@@ -125,6 +125,56 @@ st.markdown(
 )
 
 # ==========================================
+# FUNCIONES AUXILIARES DE SEGURIDAD Y MIGRACIÓN
+# ==========================================
+def make_hashes(password, salt=None):
+    if not salt:
+        salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
+    )
+    return f"{salt}${key.hex()}"
+
+def check_hashes(password, hashed_text):
+    try:
+        if "$" not in hashed_text:
+            return hashlib.sha256(password.encode()).hexdigest() == hashed_text
+        salt, _ = hashed_text.split("$")
+        return make_hashes(password, salt) == hashed_text
+    except Exception:
+        return False
+
+def ensure_columns(cursor, table_name, columns_dict):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_cols = [col[1] for col in cursor.fetchall()]
+    for col_name, col_def in columns_dict.items():
+        if col_name not in existing_cols:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
+
+# ==========================================
+# GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
+# ==========================================
+def geocode_address(calle, cp, ciudad, estado):
+    partes = [p.strip() for p in [calle, cp, ciudad, estado] if p and p.strip()]
+    direccion_completa = ", ".join(partes)
+
+    if not direccion_completa:
+        return None, None
+    try:
+        encoded = urllib.parse.quote(direccion_completa)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "RattlesnakeERP/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if data:
+                return float(data[0]["lat"]), float(data[0]["lon"])
+    except Exception:
+        pass
+    return None, None
+
+# ==========================================
 # GENERADOR DE PDFS (FPDF2)
 # ==========================================
 if FPDF_INSTALLED:
@@ -629,7 +679,7 @@ class SafeDict:
         return key
 
 # ==========================================
-# BASE DE DATOS & SEGURIDAD
+# INICIALIZACIÓN DE LA BASE DE DATOS
 # ==========================================
 def init_db():
     os.makedirs("database", exist_ok=True)
@@ -2192,11 +2242,11 @@ elif menu_sel == t["nav_users"]:
         st.dataframe(users_df, use_container_width=True)
 
         st.markdown("---")
-        with st.expander("🗑️ " + t["users_del_title"]):
+        with st.expander("🗑️ " + (t["users_del_title"] if "users_del_title" in t else "Eliminar Usuario")):
             user_del_list = users_df[users_df['username'] != 'admin']['username'].tolist()
             if user_del_list:
-                user_del_sel = st.selectbox(t["users_del_select"], user_del_list, key="del_user_sb")
-                if st.button(t["users_del_btn"], key="del_user_btn"):
+                user_del_sel = st.selectbox(t["users_del_select"] if "users_del_select" in t else "Selecciona el usuario", user_del_list, key="del_user_sb")
+                if st.button(t["users_del_btn"] if "users_del_btn" in t else "Eliminar Usuario", key="del_user_btn"):
                     if user_del_sel == user['username']:
                         st.error("No puedes eliminar tu propio usuario en sesión.")
                     else:
