@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 # ==========================================
-# CONFIGURACIÓN PÁGINA & THEME
+# CONFIGURACIÓN PÁGINA
 # ==========================================
 st.set_page_config(
     page_title="Rattlesnake System",
@@ -21,7 +21,7 @@ st.set_page_config(
 DB_PATH = "database/erp_local.db"
 
 # ==========================================
-# ESTILOS CSS (UX / CONTRASTE ALTO)
+# ESTILOS CSS (TEMA CLARO / LIGHT MODE)
 # ==========================================
 st.markdown("""
     <style>
@@ -31,20 +31,20 @@ st.markdown("""
             font-family: 'Inter', sans-serif;
         }
         
-        /* Fondo Principal */
+        /* Fondo Principal Claro */
         .stApp {
-            background-color: #0F172A;
-            color: #F8FAFC;
+            background-color: #F8FAFC;
+            color: #0F172A;
         }
         
-        /* Sidebar - Fondo e Interfaz */
+        /* Sidebar - Fondo e Interfaz Clara */
         section[data-testid="stSidebar"] {
-            background-color: #1E293B !important;
-            border-right: 1px solid #334155;
+            background-color: #FFFFFF !important;
+            border-right: 1px solid #E2E8F0;
         }
         
         section[data-testid="stSidebar"] * {
-            color: #F8FAFC !important;
+            color: #1E293B !important;
         }
         
         section[data-testid="stSidebar"] div[role="radiogroup"] label {
@@ -53,14 +53,14 @@ st.markdown("""
             transition: background 0.2s;
         }
         section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-            background-color: #334155 !important;
+            background-color: #F1F5F9 !important;
         }
         
         /* Encabezados y Títulos */
         .main-header {
             font-size: 28px;
             font-weight: 800;
-            color: #FFFFFF;
+            color: #0F172A;
             letter-spacing: -0.5px;
             margin-bottom: 20px;
         }
@@ -68,25 +68,26 @@ st.markdown("""
         .brand-header {
             font-size: 22px;
             font-weight: 800;
-            color: #38BDF8 !important;
+            color: #0284C7 !important;
             margin-bottom: 0px;
         }
 
         /* Target / KPI Cards */
         .kpi-card {
-            background-color: #1E293B;
-            border: 1px solid #334155;
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
             border-radius: 10px;
             padding: 16px;
             text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .kpi-card h4 {
-            color: #94A3B8;
+            color: #64748B;
             font-size: 14px;
             margin-bottom: 8px;
         }
         .kpi-card p {
-            color: #38BDF8;
+            color: #0284C7;
             font-size: 24px;
             font-weight: 700;
             margin: 0;
@@ -97,7 +98,7 @@ st.markdown("""
             border-radius: 8px;
             font-weight: 600;
             transition: all 0.2s ease-in-out;
-            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
             color: white !important;
             border: none;
             padding: 8px 16px;
@@ -105,14 +106,17 @@ st.markdown("""
         
         .stButton>button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
         }
         
         /* Métricas Streamlit */
         div[data-testid="stMetricValue"] {
             font-size: 26px !important;
             font-weight: 700 !important;
-            color: #38BDF8 !important;
+            color: #0284C7 !important;
+        }
+        div[data-testid="stMetricLabel"] {
+            color: #475569 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -336,7 +340,6 @@ def init_db():
             )
         ''')
 
-        # Migración suave si las columnas de avance no existen en bases preexistentes
         c.execute("PRAGMA table_info(proyectos)")
         cols = [col[1] for col in c.fetchall()]
         if 'avance_meta' not in cols:
@@ -407,8 +410,8 @@ t = TEXTS[st.session_state['lang']]
 # PANTALLA DE LOGIN
 # ==========================================
 if not st.session_state['logged_in']:
-    st.markdown(f"<h1 style='text-align: center; margin-top: 50px;'>🐍 {t['app_title']}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; color: #94A3B8;'>{t['app_subtitle']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center; margin-top: 50px; color: #0F172A;'>🐍 {t['app_title']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; color: #64748B;'>{t['app_subtitle']}</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
@@ -466,7 +469,7 @@ if new_lang != st.session_state['lang']:
     st.session_state['lang'] = new_lang
     st.rerun()
 
-st.sidebar.markdown(f"👤 **{user['nombre']}**  \n<small style='color:#94A3B8;'>👑 {user['rol']}</small>", unsafe_allow_html=True)
+st.sidebar.markdown(f"👤 **{user['nombre']}**  \n<small style='color:#64748B;'>👑 {user['rol']}</small>", unsafe_allow_html=True)
 
 if st.sidebar.button(t["btn_logout"], use_container_width=True):
     st.session_state['logged_in'] = False
@@ -474,7 +477,7 @@ if st.sidebar.button(t["btn_logout"], use_container_width=True):
     st.rerun()
 
 # ==========================================
-# FUNCIONES DE CONSULTA A BD (CON CONTEXT MANAGER)
+# FUNCIONES DE CONSULTA A BD
 # ==========================================
 def get_proyectos_df():
     with sqlite3.connect(DB_PATH) as conn:
@@ -499,7 +502,7 @@ def get_requisiciones_df(proyecto_id=None):
         return pd.read_sql_query("SELECT r.*, p.nombre as proyecto FROM requisiciones r JOIN proyectos p ON r.proyecto_id = p.id", conn)
 
 # ==========================================
-# 0. TABLERO OPERATIVO DIRECTOR (NUEVA VISTA)
+# 0. TABLERO OPERATIVO DIRECTOR
 # ==========================================
 if menu_sel == t["nav_director"]:
     st.markdown(f"<div class='main-header'>{t['dir_title']}</div>", unsafe_allow_html=True)
@@ -510,7 +513,6 @@ if menu_sel == t["nav_director"]:
     if proyectos_df.empty:
         st.info("No hay obras registradas actualmente para mostrar en la vista ejecutiva.")
     else:
-        # Cálculos de Métricas Directivas
         total_proyectos = len(proyectos_df)
         meta_promedio = proyectos_df['avance_meta'].mean()
         real_promedio = proyectos_df['avance_real'].mean()
@@ -520,7 +522,6 @@ if menu_sel == t["nav_director"]:
         
         eficiencia_presupuestal = ((presupuesto_global - costo_global) / presupuesto_global * 100) if presupuesto_global > 0 else 100.0
 
-        # Tarjetas de KPIS
         k1, k2, k3, k4 = st.columns(4)
         k1.metric(t["dir_kpi_total_proj"], f"{total_proyectos}")
         k2.metric(t["dir_kpi_goal_prog"], f"{meta_promedio:.1f}%")
@@ -533,29 +534,27 @@ if menu_sel == t["nav_director"]:
 
         with col_dir1:
             st.subheader(t["dir_scurve_title"])
-            # Generación de Curva S Simulada / Evolución
             meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct"]
             plan_acum = [5, 12, 25, 40, 58, 72, 85, 92, 97, 100]
             
-            # Ajustar la curva real proporcional al avance real global
             factor_real = (real_promedio / 100) if real_promedio > 0 else 0.1
             real_acum = [min(100, int(val * (factor_real * 1.1))) for val in plan_acum[:6]]
             
             fig_curva = go.Figure()
-            fig_curva.add_trace(go.Scatter(x=meses, y=plan_acum, mode='lines+markers', name='Planificado (Meta %)', line=dict(color='#38BDF8', width=3)))
+            fig_curva.add_trace(go.Scatter(x=meses, y=plan_acum, mode='lines+markers', name='Planificado (Meta %)', line=dict(color='#0284C7', width=3)))
             fig_curva.add_trace(go.Scatter(x=meses[:len(real_acum)], y=real_acum, mode='lines+markers', name='Ejecutado (Real %)', line=dict(color='#10B981', width=3, dash='dash')))
             fig_curva.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', 
                 plot_bgcolor='rgba(0,0,0,0)', 
-                font_color='#F8FAFC',
-                yaxis=dict(title="% Avance Acumulado", range=[0, 105]),
+                font_color='#0F172A',
+                yaxis=dict(title="% Avance Acumulado", range=[0, 105], gridcolor='#E2E8F0'),
+                xaxis=dict(gridcolor='#E2E8F0'),
                 margin=dict(l=20, r=20, t=30, b=20)
             )
             st.plotly_chart(fig_curva, use_container_width=True)
 
         with col_dir2:
             st.subheader(t["dir_status_summary"])
-            # Tabla de Resumen Metas vs Real
             df_status = proyectos_df.copy()
             costo_por_obra = costos_df.groupby('proyecto_id')['monto'].sum().reset_index() if not costos_df.empty else pd.DataFrame(columns=['proyecto_id', 'monto'])
             df_status = df_status.merge(costo_por_obra, left_on='id', right_on='proyecto_id', how='left').fillna({'monto': 0})
@@ -575,7 +574,6 @@ if menu_sel == t["nav_director"]:
                 use_container_width=True
             )
 
-        # Sección de Alertas Directivas
         st.subheader(t["dir_alerts_title"])
         alertas = []
         for _, row in df_status.iterrows():
@@ -591,7 +589,6 @@ if menu_sel == t["nav_director"]:
                 st.warning(al)
         else:
             st.success("✅ Todos los proyectos avanzan conforme a metas y dentro del presupuesto programado.")
-
 
 # ==========================================
 # 1. BALANCE FINANCIERO
@@ -625,8 +622,8 @@ elif menu_sel == t["nav_balance"]:
             st.subheader(t["chart_cat"])
             if not costos_df.empty:
                 fig_cat = px.pie(costos_df, names='categoria', values='monto', hole=0.45,
-                                 color_discrete_sequence=px.colors.qualitative.Dark24)
-                fig_cat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#F8FAFC', margin=dict(l=20, r=20, t=30, b=20))
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_cat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#0F172A', margin=dict(l=20, r=20, t=30, b=20))
                 st.plotly_chart(fig_cat, use_container_width=True)
             else:
                 st.info("No hay gastos registrados para graficar.")
@@ -638,14 +635,20 @@ elif menu_sel == t["nav_balance"]:
                 df_comp = proyectos_df.merge(costo_por_obra, left_on='id', right_on='proyecto_id', how='left').fillna(0)
                 
                 fig_bar = go.Figure(data=[
-                    go.Bar(name='Presupuesto', x=df_comp['nombre'], y=df_comp['presupuesto_total'], marker_color='#3B82F6'),
+                    go.Bar(name='Presupuesto', x=df_comp['nombre'], y=df_comp['presupuesto_total'], marker_color='#0284C7'),
                     go.Bar(name='Ejecutado', x=df_comp['nombre'], y=df_comp['monto'], marker_color='#EF4444')
                 ])
-                fig_bar.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#F8FAFC', margin=dict(l=20, r=20, t=30, b=20))
+                fig_bar.update_layout(
+                    barmode='group', 
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)', 
+                    font_color='#0F172A',
+                    yaxis=dict(gridcolor='#E2E8F0'),
+                    margin=dict(l=20, r=20, t=30, b=20)
+                )
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
                 st.info("Sin datos comparativos de obra.")
-
 
 # ==========================================
 # 2. OBRAS Y MAPAS
@@ -700,7 +703,6 @@ elif menu_sel == t["nav_obras"]:
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-
 # ==========================================
 # 3. COSTOS
 # ==========================================
@@ -749,7 +751,6 @@ elif menu_sel == t["nav_costos"]:
             if not costos_obra.empty:
                 st.dataframe(costos_obra[['fecha', 'categoria', 'concepto', 'monto', 'registrado_por']], use_container_width=True)
                 st.metric("Total Ejecutado", f"${costos_obra['monto'].sum():,.2f}")
-
 
 # ==========================================
 # 4. CUENTAS POR PAGAR (CXP)
@@ -813,7 +814,6 @@ elif menu_sel == t["nav_cxp"]:
                         st.success("Cuenta por pagar creada.")
                         st.rerun()
 
-
 # ==========================================
 # 5. REQUISICIONES DE CAMPO
 # ==========================================
@@ -856,7 +856,6 @@ elif menu_sel == t["nav_req"]:
             req_df = get_requisiciones_df(obra_id)
             if not req_df.empty:
                 st.dataframe(req_df[['fecha', 'insumo', 'cantidad', 'unidad', 'prioridad', 'solicitado_por', 'estatus']], use_container_width=True)
-
 
 # ==========================================
 # 6. GESTIÓN DE USUARIOS MAESTROS
