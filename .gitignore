@@ -1,0 +1,14 @@
+# Base de datos SQLite local
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de Python y caché
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Claves y configuraciones locales
+.streamlit/secrets.toml
+.env
