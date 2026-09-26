@@ -3,10 +3,14 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import pydeck as pdk
 import sqlite3
 import hashlib
 import secrets
 import os
+import urllib.request
+import urllib.parse
+import json
 from datetime import datetime
 
 # ==========================================
@@ -143,17 +147,19 @@ TEXTS = {
         "metric_available": "Margen / Disponible",
         "chart_cat": "Desglose de Costos por Categoría",
         "chart_comp": "Presupuesto vs Costo Real por Proyecto",
-        "obras_title": "🏗️ Gestión de Obras & Coordenadas GPS",
+        "obras_title": "🏗️ Gestión de Obras & Ubicación por Dirección",
         "tab_map": "🗺️ Mapa & Listado de Obras",
         "tab_new_obra": "➕ Registrar Nueva Obra",
+        "tab_del_obra": "🗑️ Eliminar Obra",
         "lbl_code": "Código de Obra",
         "lbl_name": "Nombre de la Obra / Proyecto",
         "lbl_client": "Cliente / Empresa",
+        "lbl_address": "Dirección Completa (ej. Av. Vallarta 1234, Guadalajara, México)",
         "lbl_budget": "Presupuesto Contratado ($)",
         "lbl_target_prog": "Meta de Avance Esperado (%)",
         "lbl_real_prog": "Avance Real Actual (%)",
-        "lbl_lat": "Latitud GPS",
-        "lbl_lon": "Longitud GPS",
+        "lbl_lat": "Latitud GPS (Opcional / Auto)",
+        "lbl_lon": "Longitud GPS (Opcional / Auto)",
         "btn_save_obra": "Guardar Proyecto",
         "msg_obra_success": "Obra guardada exitosamente.",
         "costos_title": "💰 Captura & Control Metódico de Costos",
@@ -228,17 +234,19 @@ TEXTS = {
         "metric_available": "Margin / Available",
         "chart_cat": "Cost Breakdown by Category",
         "chart_comp": "Budget vs Actual Cost per Project",
-        "obras_title": "🏗️ Project Management & GPS Coordinates",
+        "obras_title": "🏗️ Project Management & Address Location",
         "tab_map": "MAP & Project List",
         "tab_new_obra": "➕ Register New Project",
+        "tab_del_obra": "🗑️ Delete Project",
         "lbl_code": "Project Code",
         "lbl_name": "Project Name",
         "lbl_client": "Client / Company",
+        "lbl_address": "Full Physical Address (e.g., 123 Main St, New York, NY)",
         "lbl_budget": "Contracted Budget ($)",
         "lbl_target_prog": "Target Expected Progress (%)",
         "lbl_real_prog": "Actual Current Progress (%)",
-        "lbl_lat": "GPS Latitude",
-        "lbl_lon": "GPS Longitude",
+        "lbl_lat": "GPS Latitude (Optional / Auto)",
+        "lbl_lon": "GPS Longitude (Optional / Auto)",
         "btn_save_obra": "Save Project",
         "msg_obra_success": "Project saved successfully.",
         "costos_title": "💰 Systematic Cost Tracking",
@@ -280,6 +288,24 @@ TEXTS = {
         "users_list": "Registered System Users"
     }
 }
+
+# ==========================================
+# GEOCODIFICACIÓN (DIRECCIÓN -> GPS LAT/LON)
+# ==========================================
+def geocode_address(address):
+    if not address or len(address.strip()) < 3:
+        return None, None
+    try:
+        encoded = urllib.parse.quote(address)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'RattlesnakeERP/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if data:
+                return float(data[0]['lat']), float(data[0]['lon'])
+    except Exception:
+        pass
+    return None, None
 
 # ==========================================
 # BASE DE DATOS & SEGURIDAD (MIGRACIÓN AUTO)
@@ -329,6 +355,7 @@ def init_db():
                 codigo TEXT UNIQUE NOT NULL,
                 nombre TEXT NOT NULL,
                 cliente TEXT DEFAULT '',
+                direccion TEXT DEFAULT '',
                 presupuesto_total REAL DEFAULT 0.0,
                 avance_meta REAL DEFAULT 0.0,
                 avance_real REAL DEFAULT 0.0,
@@ -347,6 +374,7 @@ def init_db():
             'codigo': "TEXT DEFAULT ''",
             'nombre': "TEXT DEFAULT ''",
             'cliente': "TEXT DEFAULT ''",
+            'direccion': "TEXT DEFAULT ''",
             'presupuesto_total': "REAL DEFAULT 0.0",
             'avance_meta': "REAL DEFAULT 0.0",
             'avance_real': "REAL DEFAULT 0.0",
@@ -688,21 +716,49 @@ elif menu_sel == t["nav_balance"]:
                 st.info("Sin datos comparativos de obra.")
 
 # ==========================================
-# 2. OBRAS Y MAPAS
+# 2. OBRAS Y MAPAS CON BÚSQUEDA POR DIRECCIÓN
 # ==========================================
 elif menu_sel == t["nav_obras"]:
     st.markdown(f"<div class='main-header'>{t['obras_title']}</div>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs([t["tab_map"], t["tab_new_obra"]])
+    tab1, tab2, tab3 = st.tabs([t["tab_map"], t["tab_new_obra"], t["tab_del_obra"]])
 
     with tab1:
         df_obras = get_proyectos_df()
         if not df_obras.empty:
-            df_mapa = df_obras.dropna(subset=['latitud', 'longitud'])
+            df_mapa = df_obras.dropna(subset=['latitud', 'longitud']).copy()
+            df_mapa = df_mapa[(df_mapa['latitud'] != 0.0) & (df_mapa['longitud'] != 0.0)]
+            
             if not df_mapa.empty:
-                st.map(df_mapa, latitude='latitud', longitude='longitud', size=25)
+                st.pydeck_chart(pdk.Deck(
+                    map_style='mapbox://styles/mapbox/light-v10',
+                    initial_view_state=pdk.ViewState(
+                        latitude=df_mapa['latitud'].mean(),
+                        longitude=df_mapa['longitud'].mean(),
+                        zoom=11,
+                        pitch=35,
+                    ),
+                    layers=[
+                        pdk.Layer(
+                            'ScatterplotLayer',
+                            data=df_mapa,
+                            get_position='[longitud, latitud]',
+                            get_color='[2, 132, 199, 220]',
+                            get_radius=180,
+                            pickable=True,
+                            auto_highlight=True
+                        ),
+                    ],
+                    tooltip={
+                        "html": "<b>🏗️ Obra:</b> {nombre}<br/><b>📍 Dirección:</b> {direccion}<br/><b>👤 Cliente:</b> {cliente}<br/><b>💰 Presupuesto:</b> ${presupuesto_total}",
+                        "style": {"backgroundColor": "#0F172A", "color": "white", "fontSize": "13px", "borderRadius": "6px"}
+                    }
+                ))
+            else:
+                st.info("Registra direcciones válidas para mostrar las obras en el mapa interactivo.")
+                
             st.markdown("---")
-            st.dataframe(df_obras[['codigo', 'nombre', 'cliente', 'presupuesto_total', 'avance_meta', 'avance_real', 'estado', 'latitud', 'longitud']], use_container_width=True)
+            st.dataframe(df_obras[['codigo', 'nombre', 'cliente', 'direccion', 'presupuesto_total', 'avance_meta', 'avance_real', 'estado', 'latitud', 'longitud']], use_container_width=True)
         else:
             st.info("No hay proyectos registrados.")
 
@@ -711,6 +767,7 @@ elif menu_sel == t["nav_obras"]:
             codigo = st.text_input(t["lbl_code"])
             nombre = st.text_input(t["lbl_name"])
             cliente = st.text_input(t["lbl_client"])
+            direccion = st.text_input(t["lbl_address"])
             presupuesto = st.number_input(t["lbl_budget"], min_value=0.0, step=10000.0)
             
             c_meta, c_real = st.columns(2)
@@ -721,18 +778,29 @@ elif menu_sel == t["nav_obras"]:
 
             c_lat, c_lon = st.columns(2)
             with c_lat:
-                latitud = st.number_input(t["lbl_lat"], format="%.6f", value=24.8091)
+                latitud_manual = st.number_input(t["lbl_lat"], format="%.6f", value=0.0)
             with c_lon:
-                longitud = st.number_input(t["lbl_lon"], format="%.6f", value=-107.3940)
+                longitud_manual = st.number_input(t["lbl_lon"], format="%.6f", value=0.0)
 
             if st.form_submit_button(t["btn_save_obra"]):
                 if codigo and nombre and cliente:
+                    lat_final, lon_final = latitud_manual, longitud_manual
+                    
+                    # Si no introdujo lat/lon manuales, buscar por dirección automáticamente
+                    if lat_final == 0.0 and lon_final == 0.0 and direccion:
+                        lat_geo, lon_geo = geocode_address(direccion)
+                        if lat_geo and lon_geo:
+                            lat_final, lon_final = lat_geo, lon_geo
+                            st.info(f"📍 Coordenadas encontradas automáticamente: Lat {lat_final}, Lon {lon_final}")
+                        else:
+                            st.warning("⚠️ No se pudieron obtener coordenadas exactas de esa dirección, la obra se guardará de todos modos.")
+
                     try:
                         with sqlite3.connect(DB_PATH) as conn:
                             c = conn.cursor()
                             c.execute(
-                                "INSERT INTO proyectos (codigo, nombre, cliente, presupuesto_total, avance_meta, avance_real, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                (codigo, nombre, cliente, presupuesto, avance_meta, avance_real, latitud, longitud)
+                                "INSERT INTO proyectos (codigo, nombre, cliente, direccion, presupuesto_total, avance_meta, avance_real, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (codigo, nombre, cliente, direccion, presupuesto, avance_meta, avance_real, lat_final, lon_final)
                             )
                             conn.commit()
                         clear_data_cache()
@@ -740,6 +808,34 @@ elif menu_sel == t["nav_obras"]:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
+
+    with tab3:
+        st.subheader("🗑️ Eliminar Obra o Cliente")
+        df_obras_del = get_proyectos_df()
+        
+        if not df_obras_del.empty:
+            proyectos_dict_del = dict(zip(df_obras_del['nombre'] + " (" + df_obras_del['cliente'] + ")", df_obras_del['id']))
+            obra_sel_del = st.selectbox("Seleccionar Proyecto a Borrar", list(proyectos_dict_del.keys()))
+            id_borrar = proyectos_dict_del[obra_sel_del]
+            
+            st.error(f"⚠️ **ATENCIÓN**: Esta acción eliminará permanentemente la obra seleccionada y **todos los registros asociados** (Costos, Cuentas por Pagar y Requisiciones).")
+            
+            if st.button("❌ Confirmar y Borrar Obra", type="primary"):
+                try:
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("DELETE FROM costos WHERE proyecto_id = ?", (id_borrar,))
+                        c.execute("DELETE FROM cuentas_por_pagar WHERE proyecto_id = ?", (id_borrar,))
+                        c.execute("DELETE FROM requisiciones WHERE proyecto_id = ?", (id_borrar,))
+                        c.execute("DELETE FROM proyectos WHERE id = ?", (id_borrar,))
+                        conn.commit()
+                    clear_data_cache()
+                    st.success("La obra y sus registros asociados se eliminaron correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al eliminar la obra: {e}")
+        else:
+            st.info("No hay proyectos registrados para eliminar.")
 
 # ==========================================
 # 3. COSTOS
